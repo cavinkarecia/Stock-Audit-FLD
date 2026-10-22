@@ -1,0 +1,8 @@
+[package]
+name = "stock_audit_fld"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "stock_audit_fld"
+path = "src/main.rs"
