@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::Engine;
@@ -125,8 +125,7 @@ fn main() {
     let dir = env::var("DATA_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("data"));
-    let app = App::load(dir);
-    let app = Mutex::new(app);
+    let app = Arc::new(Mutex::new(App::load(dir)));
     let addr = format!("0.0.0.0:{port}");
     let listener = TcpListener::bind(&addr).unwrap_or_else(|err| {
         eprintln!("failed to bind {addr}: {err}");
@@ -137,15 +136,15 @@ fn main() {
     for incoming in listener.incoming() {
         match incoming {
             Ok(stream) => {
-                let app = &app;
-                std::thread::spawn(move || handle(stream, app));
+                let app = Arc::clone(&app);
+                std::thread::spawn(move || handle(stream, &app));
             }
             Err(err) => eprintln!("accept error: {err}"),
         }
     }
 }
 
-fn handle(mut stream: TcpStream, app: &Mutex<App>) {
+fn handle(mut stream: TcpStream, app: &Arc<Mutex<App>>) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(60)));
     let _ = stream.set_write_timeout(Some(Duration::from_secs(60)));
     let req = match read_request(&mut stream) {
@@ -229,7 +228,7 @@ fn find_sep(buf: &[u8]) -> Option<usize> {
     buf.windows(4).position(|w| w == b"\r\n\r\n")
 }
 
-fn get(path: &str, app: &Mutex<App>) -> (String, String, String, Vec<u8>) {
+fn get(path: &str, app: &Arc<Mutex<App>>) -> (String, String, String, Vec<u8>) {
     match path {
         "/" | "/index.html" | "/survey" => html(SURVEY_HTML),
         "/healthz" => text(200, "text/plain; charset=utf-8", "ok"),
@@ -255,7 +254,7 @@ fn get(path: &str, app: &Mutex<App>) -> (String, String, String, Vec<u8>) {
     }
 }
 
-fn post(path: &str, body: &[u8], app: &Mutex<App>) -> (String, String, String, Vec<u8>) {
+fn post(path: &str, body: &[u8], app: &Arc<Mutex<App>>) -> (String, String, String, Vec<u8>) {
     match path {
         "/api/responses" => save_response(body, app),
         "/api/recipients" => add_recipient(body, app),
@@ -264,7 +263,7 @@ fn post(path: &str, body: &[u8], app: &Mutex<App>) -> (String, String, String, V
     }
 }
 
-fn delete(path: &str, body: &[u8], app: &Mutex<App>) -> (String, String, String, Vec<u8>) {
+fn delete(path: &str, body: &[u8], app: &Arc<Mutex<App>>) -> (String, String, String, Vec<u8>) {
     match path {
         "/api/recipients" => remove_recipient(body, app),
         path if path.starts_with("/api/responses/") => {
@@ -275,7 +274,7 @@ fn delete(path: &str, body: &[u8], app: &Mutex<App>) -> (String, String, String,
     }
 }
 
-fn save_response(body: &[u8], app: &Mutex<App>) -> (String, String, String, Vec<u8>) {
+fn save_response(body: &[u8], app: &Arc<Mutex<App>>) -> (String, String, String, Vec<u8>) {
     let incoming: Incoming = match serde_json::from_slice(body) {
         Ok(v) => v,
         Err(_) => return json_err(400, "The response could not be read."),
@@ -432,7 +431,7 @@ fn decode_b64(data: &str) -> Result<Vec<u8>, String> {
         .map_err(|_| "An uploaded file could not be read.".to_string())
 }
 
-fn add_recipient(body: &[u8], app: &Mutex<App>) -> (String, String, String, Vec<u8>) {
+fn add_recipient(body: &[u8], app: &Arc<Mutex<App>>) -> (String, String, String, Vec<u8>) {
     let incoming: EmailBody = match serde_json::from_slice(body) {
         Ok(v) => v,
         Err(_) => return json_err(400, "Enter an email address."),
@@ -458,7 +457,7 @@ fn add_recipient(body: &[u8], app: &Mutex<App>) -> (String, String, String, Vec<
     json_ok(&app.recipients)
 }
 
-fn remove_recipient(body: &[u8], app: &Mutex<App>) -> (String, String, String, Vec<u8>) {
+fn remove_recipient(body: &[u8], app: &Arc<Mutex<App>>) -> (String, String, String, Vec<u8>) {
     let incoming: EmailBody = match serde_json::from_slice(body) {
         Ok(v) => v,
         Err(_) => return json_err(400, "Enter an email address."),
@@ -472,7 +471,7 @@ fn remove_recipient(body: &[u8], app: &Mutex<App>) -> (String, String, String, V
     json_ok(&app.recipients)
 }
 
-fn remove_response(id: &str, app: &Mutex<App>) -> (String, String, String, Vec<u8>) {
+fn remove_response(id: &str, app: &Arc<Mutex<App>>) -> (String, String, String, Vec<u8>) {
     let mut app = app.lock().unwrap_or_else(|e| e.into_inner());
     let Some(pos) = app.responses.iter().position(|r| r.id == id) else {
         return json_err(404, "That response was not found.");
@@ -486,7 +485,7 @@ fn remove_response(id: &str, app: &Mutex<App>) -> (String, String, String, Vec<u
     json_ok(&serde_json::json!({ "ok": true }))
 }
 
-fn mail_dump(app: &Mutex<App>) -> (String, String, String, Vec<u8>) {
+fn mail_dump(app: &Arc<Mutex<App>>) -> (String, String, String, Vec<u8>) {
     let (recipients, responses, stock, count) = {
         let app = app.lock().unwrap_or_else(|e| e.into_inner());
         if app.recipients.is_empty() {
@@ -579,7 +578,7 @@ fn send_dump(
     Ok(())
 }
 
-fn serve_file(path: &str, app: &Mutex<App>) -> (String, String, String, Vec<u8>) {
+fn serve_file(path: &str, app: &Arc<Mutex<App>>) -> (String, String, String, Vec<u8>) {
     let rest = path.trim_start_matches("/api/files/");
     let mut bits = rest.split('/');
     let id = bits.next().unwrap_or("");
