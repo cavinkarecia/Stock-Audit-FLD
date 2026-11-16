@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock Correction Audit</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f1f5f4;--ink:#16302b;--mut:#5e726d;--line:#d6e2df;--acc:#1b6b57;--gold:#c9a24a;--card:#fff;--bad:#9d2c2c;--ok:#176b3a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 Figtree,system-ui,sans-serif}
+header{background:linear-gradient(135deg,#143a36,#1a4a43);color:#fff;border-bottom:6px solid var(--gold);padding:28px 20px 22px}
+.wrap{max-width:980px;margin:0 auto}
+header .wrap{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;flex-wrap:wrap}
+.eb{letter-spacing:.18em;text-transform:uppercase;font-size:12px;margin:0 0 6px;color:#d5ebe4}
+h1{margin:0;font-size:clamp(28px,4vw,40px);line-height:1.05}
+header p{margin:8px 0 0;max-width:640px;color:#e7f3ef}
+nav{display:flex;gap:8px}
+nav button,button,.linkish{font:inherit;font-weight:700;border-radius:12px;border:1px solid transparent;padding:10px 14px;cursor:pointer}
+nav button{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
+nav button.on{background:#fff;color:#143a36}
+main{max-width:980px;margin:0 auto;padding:22px 16px 64px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 1px 2px rgba(20,50,45,.04)}
+h2{margin:0 0 6px;font-size:22px}
+.hint{color:var(--mut);margin:0 0 16px}
+label{display:block;font-weight:700;margin:14px 0 6px}
+.req{color:#b42318}
+input,select,textarea{width:100%;font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+input[type=file]{padding:10px}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+button.p{background:var(--acc);color:#fff}
+button.g{background:#fff;color:var(--ink);border-color:var(--line)}
+button:disabled{opacity:.6;cursor:default}
+.err{background:#fde8e8;color:var(--bad);border-radius:12px;padding:10px 12px;margin:0 0 12px}
+.ok{color:var(--ok);font-weight:700;margin:8px 0}
+.out{margin-top:14px;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.out h3{margin:0;padding:12px 14px;background:#f6faf8;font-size:16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;padding:12px}
+.k{background:#f6faf8;border-radius:10px;padding:10px 12px}
+.k b{display:block;font-size:22px}
+.k span{color:var(--mut);font-size:13px}
+.scroll{overflow:auto;max-height:420px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--mut);font-size:12px;position:sticky;top:0;background:#fff}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+a.btn{display:inline-block;background:var(--acc);color:#fff;text-decoration:none;border-radius:12px;padding:10px 14px;font-weight:700}
+.mail{margin-top:16px}
+.mail .add{display:flex;gap:8px}
+.mail .add input{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{background:#e7f3ef;border-radius:999px;padding:6px 10px;font-weight:700}
+.chip button{border:0;background:transparent;padding:0 0 0 8px;cursor:pointer;font-weight:800}
+.note{color:var(--mut);font-size:13px}
+.thanks{text-align:center;padding:28px 10px}
+.thanks h2{font-size:32px}
+.search{max-width:320px}
+.mini{font-size:13px;color:var(--mut)}
+@media(max-width:720px){.mail .add,header .wrap{display:block}nav{margin-top:14px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div>
+      <p class="eb">CavinKare</p>
+      <h1>Stock Correction Audit</h1>
+      <p>The same questions as the field survey. The physical stock file is read on this page, and that output is saved with the response.</p>
+    </div>
+    <nav>
+      <button id="navForm" class="on" type="button">Survey</button>
+      <button id="navRaw" type="button">Raw Data</button>
+    </nav>
+  </div>
+</header>
+<main>
+  <section id="formView" class="card"></section>
+  <section id="rawView" class="card" hidden>
+    <h2>Raw Data</h2>
+    <p class="hint">Every response saved from this survey. Download it, or mail the dump to the addresses below.</p>
+    <div class="tools">
+      <a class="btn" href="/api/dump.csv">Download raw data</a>
+      <a class="btn" href="/api/stock.csv">Download stock output</a>
+      <input id="q" class="search" type="search" placeholder="Search responses">
+    </div>
+    <div id="rawTable"></div>
+    <div class="mail">
+      <h2>Mailbox</h2>
+      <p class="hint">Add the email addresses that should receive the dump.</p>
+      <div class="add">
+        <input id="mailIn" type="text" placeholder="name@company.com, another@company.com">
+        <button id="addMail" class="p" type="button">Add</button>
+      </div>
+      <div id="chips" class="chips"></div>
+      <button id="sendMail" class="p" type="button">Mail the dump</button>
+      <p id="mailMsg" class="note"></p>
+      <p class="note">Mail sends from the server. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_FROM on the server. Download works without that.</p>
+    </div>
+  </section>
+</main>
+<script>
+const AUDITORS = ["Arindom Basumatary","Kaushal Kumar Verma","Khushi Rajput","Sudipta Halder","chetan.b","Mallikarjun.P","NIKHIL","Nithishwaran.B","Charan","Manish.G","Manvendra.V","Mukeshsharma.S","Abhay.s","Akash.P","Chetan.K","Hitesh.G","shubham.d","Yash.S","Prithvi","Akhilesh.R","ALLA BALA VARADHAN REDDY","Chokka Durga Prasad","erapogu.n","Narasapurapu Tharun Kumar","YUVATEJA","Rakesh.Ra","Nathish","Pachaiappan","Pradeepan.R","Ragul.R","BALASUBRAMANIAN.A","Veeramani","Thamaraikannan.M","Naveen","ASHUTOSH SUDHIR UTTEKAR","AYUSH PARIDA","NEEL SHUKLA","RITESH","Abhishek","Parth Sorathia","Siddharth.D","Dilip","Tushar Dhoot","Roshan.D","Ajith","Other"];
+const BOTH = "Both (Sales Return + Secondary)";
+const S = blank();
+let responses = [];
+let recipients = [];
+let error = "";
+
+function blank(){
+  return {step:"start",auditor:"",auditorOther:"",conducted:"",date:"",dbCode:"",dbName:"",stockFileName:"",stockRows:[],stockError:"",consent:null,auditType:"",srCode:"",srName:"",srValue:"",srProof:null,secCode:"",secName:"",secValue:"",secProof:null,cancelReason:"",cancelDate:"",busy:false};
+}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function qty(n){n=Number(n)||0;return (Math.round(n*100)/100).toLocaleString("en-IN");}
+function lab(t,req){return `<label>${esc(t)}${req?' <span class="req">*</span>':""}</label>`;}
+function sel(key,options,placeholder){
+  const cur=S[key];
+  return `<select data-k="${key}">${[`<option value="">${esc(placeholder)}</option>`].concat(options.map(o=>`<option value="${esc(o)}"${o===cur?" selected":""}>${esc(o)}</option>`)).join("")}</select>`;
+}
+function inp(key,type){return `<input data-k="${key}" type="${type||"text"}" value="${esc(S[key]||"")}">`;}
+function fileNote(file){return file?`<p class="ok">Loaded: ${esc(file.name)}</p>`:"";}
+
+function stockHtml(){
+  const rows=S.stockRows||[];
+  if(!rows.length) return S.stockError?`<p class="err">${esc(S.stockError)}</p>`:"";
+  const sale=rows.reduce((a,r)=>a+Number(r.saleable||0),0);
+  const uns=rows.reduce((a,r)=>a+Number(r.unsaleable||0),0);
+  const shown=rows.slice(0,300);
+  return `<div class="out"><h3>Output from ${esc(S.stockFileName)}</h3>
+    <div class="kpis"><div class="k"><b>${rows.length}</b><span>Products</span></div><div class="k"><b>${qty(sale)}</b><span>Saleable</span></div><div class="k"><b>${qty(uns)}</b><span>Unsaleable</span></div></div>
+    <div class="scroll"><table><thead><tr><th>Product code</th><th>Product description</th><th>MRP</th><th>Saleable</th><th>Unsaleable</th></tr></thead><tbody>
+    ${shown.map(r=>`<tr><td>${esc(r.code)}</td><td>${esc(r.desc)}</td><td>${esc(r.mrp||"")}</td><td>${qty(r.saleable)}</td><td>${qty(r.unsaleable)}</td></tr>`).join("")}
+    </tbody></table></div>${rows.length>300?`<p class="note">Showing the first 300 of ${rows.length} products. All of them are saved.</p>`:""}</div>`;
+}
+
+function stepHtml(){
+  if(S.step==="done"){
+    return `<div class="thanks"><h2>Thank You for your inputs!</h2><p>The response is saved. Open Raw Data to see it, download it, or mail it.</p>
+      <div class="row" style="justify-content:center"><button class="p" id="again" type="button">New response</button><button class="g" id="gotoRaw" type="button">Raw Data</button></div></div>`;
+  }
+  if(S.step==="start"){
+    return `<h2>Stock Correction Audit</h2><p class="hint">* Indicates a required question</p>
+      ${lab("Auditor Name",true)}${sel("auditor",AUDITORS,"Choose")}
+      ${lab("Other ( auditor name)",false)}${inp("auditorOther")}
+      ${lab("Was the Audit conducted as planned",true)}${sel("conducted",["Yes","No"],"Choose")}
+      <div class="row"><button class="p" id="next" type="button"${S.busy?" disabled":""}>Next</button></div>`;
+  }
+  if(S.step==="stock"){
+    return `<h2>Stock Correction</h2>
+      ${lab("Date of audit",true)}${inp("date","date")}
+      ${lab("DB Code (Exp- GT0100020205200002020520)",true)}${inp("dbCode")}
+      ${lab("DB Name",true)}${inp("dbName")}
+      ${lab("Physical Stock file( only excel file)",true)}
+      <input id="stockFile" type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
+      ${S.stockFileName&&S.stockRows.length?`<p class="ok">Loaded: ${esc(S.stockFileName)}</p>`:""}
+      <p class="note">The file is read here. Product code, description, MRP, saleable and unsaleable quantities are the output.</p>
+      ${stockHtml()}
+      ${lab("Distributor consent form",true)}
+      <input id="consentFile" type="file">
+      ${fileNote(S.consent)}
+      ${lab("What is the Audit which you are doing",true)}${sel("auditType",["Sales Return","Secondary",BOTH],"Choose")}
+      <div class="row"><button class="g" id="back" type="button">Back</button><button class="p" id="next" type="button"${S.busy?" disabled":""}>Next</button></div>`;
+  }
+  if(S.step==="cancel"){
+    return `<h2>Audit Cancellation</h2>
+      ${lab("What is the reason for Audit Cancellation",true)}${inp("cancelReason")}
+      ${lab("When did the Audit get cancelled",true)}${inp("cancelDate","date")}
+      <div class="row"><button class="g" id="back" type="button"${S.busy?" disabled":""}>Back</button><button class="p" id="send" type="button"${S.busy?" disabled":""}>Submit</button></div>`;
+  }
+  const sales = S.step==="sales" || S.step==="both";
+  const sec = S.step==="secondary" || S.step==="both";
+  const title = S.step==="both" ? "Sales Return + Secondary" : (S.step==="sales" ? "Sales Return" : "Secondary");
+  let body = `<h2>${esc(title)}</h2>`;
+  if(sales){
+    const colon = S.step==="both" ? ":" : "";
+    body += `${lab("Outlet Code"+(S.step==="both"?" ( Sales return):":"( Sales Return)"),true)}${inp("srCode")}
+      ${lab(S.step==="both"?"Outlet Name( Sales return):":"Outlet Name( Sales Return)",true)}${inp("srName")}
+      ${lab("Value of Sales return"+colon,true)}${inp("srValue")}
+      ${lab("Proof of sales return"+colon,true)}<input id="srFile" type="file">${fileNote(S.srProof)}`;
+  }
+  if(sec){
+    const colon = S.step==="both" ? ":" : "";
+    body += `${lab(S.step==="both"?"Outlet Code( secondary):":"Outlet Code( Secondary)",true)}${inp("secCode")}
+      ${lab(S.step==="both"?"Outlet Name (secondary):":"Outlet Name (Secondary)",true)}${inp("secName")}
+      ${lab("Value of secondary"+colon,true)}${inp("secValue")}
+      ${lab("Proof of secondary"+colon,true)}<input id="secFile" type="file">${fileNote(S.secProof)}`;
+  }
+  body += `<div class="row"><button class="g" id="back" type="button"${S.busy?" disabled":""}>Back</button><button class="p" id="send" type="button"${S.busy?" disabled":""}>Submit</button></div>`;
+  return body;
+}
+
+function renderForm(){
+  document.getElementById("formView").innerHTML = (error?`<p class="err">${esc(error)}</p>`:"") + stepHtml();
+  document.querySelectorAll("[data-k]").forEach(el=>{
+    el.addEventListener("input",()=>{S[el.dataset.k]=el.value;});
+    el.addEventListener("change",()=>{S[el.dataset.k]=el.value;});
+  });
+  const n=document.getElementById("next"); if(n) n.onclick=onNext;
+  const b=document.getElementById("back"); if(b) b.onclick=onBack;
+  const s=document.getElementById("send"); if(s) s.onclick=onSend;
+  const again=document.getElementById("again"); if(again) again.onclick=()=>{Object.assign(S,blank()); error=""; renderForm();};
+  const gr=document.getElementById("gotoRaw"); if(gr) gr.onclick=()=>show("raw");
+  const stock=document.getElementById("stockFile"); if(stock) stock.onchange=e=>onStock(e.target.files[0]);
+  const consent=document.getElementById("consentFile"); if(consent) consent.onchange=e=>onProof(e.target.files[0],"consent");
+  const sr=document.getElementById("srFile"); if(sr) sr.onchange=e=>onProof(e.target.files[0],"srProof");
+  const sec=document.getElementById("secFile"); if(sec) sec.onchange=e=>onProof(e.target.files[0],"secProof");
+}
+
+function need(cond,msg){if(cond){error=msg;return true;}return false;}
+function onNext(){
+  error="";
+  if(S.step==="start"){
+    if(need(!S.auditor,"Auditor Name is required.")) return renderForm();
+    if(need(S.auditor==="Other"&&!S.auditorOther.trim(),"Enter the auditor name for Other.")) return renderForm();
+    if(need(!S.conducted,"Was the Audit conducted as planned is required.")) return renderForm();
+    S.step = S.conducted==="Yes" ? "stock" : "cancel";
+  } else if(S.step==="stock"){
+    if(need(!S.date,"Date of audit is required.")) return renderForm();
+    if(need(!S.dbCode.trim(),"DB Code is required.")) return renderForm();
+    if(need(!S.dbName.trim(),"DB Name is required.")) return renderForm();
+    if(need(!S.stockRows.length,S.stockError||"Upload the physical stock Excel file so it can be read.")) return renderForm();
+    if(need(!S.consent,"Distributor consent form is required.")) return renderForm();
+    if(need(!S.auditType,"What is the Audit which you are doing is required.")) return renderForm();
+    S.step = S.auditType==="Sales Return" ? "sales" : S.auditType==="Secondary" ? "secondary" : "both";
+  }
+  renderForm();
+}
+function onBack(){
+  error="";
+  S.step = (S.step==="stock"||S.step==="cancel") ? "start" : "stock";
+  renderForm();
+}
+
+function parseAoa(a){
+  let hi=-1,c=null;
+  for(let i=0;i<Math.min(a.length,15)&&hi<0;i++){
+    const h=(a[i]||[]).map(v=>String(v==null?"":v).trim());
+    let d=-1,s=-1,u=-1;
+    h.forEach((v,j)=>{
+      const n=v.toLowerCase().replace(/[\s_\-.]/g,"");
+      if(d<0&&/productdesc|productname|^description$|^itemname$|^item$/.test(n)) d=j;
+      if(s<0&&/^(sumof)?saleable(stock|qty|quantity|cases|pcs)?$/.test(n)) s=j;
+      if(u<0&&/^(sumof)?(unsaleable|unsalable|unsaleble)(stock|qty|quantity|cases|pcs)?$/.test(n)) u=j;
+    });
+    if(d>-1&&s>-1){
+      hi=i;
+      c={d,s,u,m:h.findIndex(v=>/^mrp$/i.test(v)),code:h.findIndex(v=>/^(product|item)\s*code$|^sku$/i.test(v)),dn:h.findIndex(v=>/distributor name/i.test(v))};
+    }
+  }
+  if(hi<0) return null;
+  const g={}, rows=[];
+  let distributor="";
+  if(c.dn>-1){
+    for(let j=hi+1;j<a.length;j++){
+      const v=a[j]&&a[j][c.dn];
+      if(v){distributor=String(v).trim(); break;}
+    }
+  }
+  for(let j=hi+1;j<a.length;j++){
+    const r=a[j]||[];
+    const desc=String(r[c.d]==null?"":r[c.d]).replace(/\u00a0/g," ").replace(/\s+/g," ").trim();
+    const saleable=parseFloat(String(r[c.s]).replace(/,/g,""));
+    if(!desc||isNaN(saleable)||/grand total/i.test(desc)) continue;
+    const mrp=c.m>-1?parseFloat(r[c.m])||0:0;
+    const code=c.code>-1&&r[c.code]?String(r[c.code]).trim():"";
+    const key=(code||desc)+"|"+mrp;
+    const uns=c.u>-1?(parseFloat(String(r[c.u]).replace(/,/g,""))||0):0;
+    if(g[key]){g[key].saleable+=saleable;g[key].unsaleable+=uns;}
+    else {g[key]={code,desc,mrp,saleable,unsaleable:uns}; rows.push(g[key]);}
+  }
+  return {rows,distributor};
+}
+
+async function onStock(file){
+  error="";
+  if(!file) return;
+  if(!/\.(xlsx|xls|csv)$/i.test(file.name)){
+    S.stockRows=[]; S.stockFileName=""; S.stockError="Upload an Excel file (.xlsx or .xls).";
+    renderForm(); return;
+  }
+  if(!window.XLSX){
+    S.stockError="The Excel reader did not load. Check the connection and try again.";
+    renderForm(); return;
+  }
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(new Uint8Array(buf),{type:"array"});
+    let best=null;
+    wb.SheetNames.forEach(name=>{
+      const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true});
+      const parsed=parseAoa(aoa);
+      if(parsed&&parsed.rows.length&&(!best||parsed.rows.length>best.rows.length)) best=parsed;
+    });
+    if(!best){
+      S.stockRows=[]; S.stockFileName=file.name;
+      S.stockError="Could not find the product name column and the saleable stock column. Accepted headers: Product Description (or Product Name), MRP, SaleableQty (or Saleable Stock), UnSaleableQty (optional).";
+    } else {
+      S.stockRows=best.rows; S.stockFileName=file.name; S.stockError="";
+      if(best.distributor&&!S.dbName) S.dbName=best.distributor;
+    }
+  }catch(e){
+    S.stockRows=[]; S.stockError="Could not read this file.";
+  }
+  renderForm();
+}
+
+function onProof(file,key){
+  if(!file) return;
+  if(file.size>8*1024*1024){error=file.name+" is larger than 8 MB."; renderForm(); return;}
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const text=String(reader.result||"");
+    const i=text.indexOf(",");
+    S[key]={name:file.name,contentType:file.type||"application/octet-stream",dataBase64:text.slice(i+1)};
+    error="";
+    renderForm();
+  };
+  reader.readAsDataURL(file);
+}
+
+function payload(){
+  const body={
+    auditor:S.auditor,auditorOther:S.auditorOther,conducted:S.conducted,
+    date:"",dbCode:"",dbName:"",stockFileName:"",stockRows:[],consent:null,auditType:"",
+    srCode:"",srName:"",srValue:"",srProof:null,secCode:"",secName:"",secValue:"",secProof:null,
+    cancelReason:"",cancelDate:""
+  };
+  if(S.conducted==="No"){
+    body.cancelReason=S.cancelReason; body.cancelDate=S.cancelDate; return body;
+  }
+  body.date=S.date; body.dbCode=S.dbCode; body.dbName=S.dbName;
+  body.stockFileName=S.stockFileName; body.stockRows=S.stockRows; body.consent=S.consent; body.auditType=S.auditType;
+  if(S.auditType==="Sales Return"||S.auditType===BOTH){
+    body.srCode=S.srCode; body.srName=S.srName; body.srValue=S.srValue; body.srProof=S.srProof;
+  }
+  if(S.auditType==="Secondary"||S.auditType===BOTH){
+    body.secCode=S.secCode; body.secName=S.secName; body.secValue=S.secValue; body.secProof=S.secProof;
+  }
+  return body;
+}
+
+function branchOk(){
+  if(S.step==="cancel"){
+    if(need(!S.cancelReason.trim(),"What is the reason for Audit Cancellation is required.")) return false;
+    if(need(!S.cancelDate,"When did the Audit get cancelled is required.")) return false;
+    return true;
+  }
+  if(S.step==="sales"||S.step==="both"){
+    if(need(!S.srCode.trim()||!S.srName.trim()||!S.srValue.trim(),"Sales return outlet code, name and value are required.")) return false;
+    if(need(!S.srProof,"Proof of sales return is required.")) return false;
+  }
+  if(S.step==="secondary"||S.step==="both"){
+    if(need(!S.secCode.trim()||!S.secName.trim()||!S.secValue.trim(),"Secondary outlet code, name and value are required.")) return false;
+    if(need(!S.secProof,"Proof of secondary is required.")) return false;
+  }
+  return true;
+}
+
+async function onSend(){
+  error="";
+  if(!branchOk()) return renderForm();
+  S.busy=true; renderForm();
+  try{
+    const res=await fetch("/api/responses",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload())});
+    const data=await res.json().catch(()=>({}));
+    if(!res.ok){error=data.error||"Could not save the response."; S.busy=false; renderForm(); return;}
+    Object.assign(S,blank(),{step:"done"});
+    error="";
+    renderForm();
+  }catch(e){
+    error="Could not save the response."; S.busy=false; renderForm();
+  }
+}
+
+function show(which){
+  document.getElementById("formView").hidden = which!=="form";
+  document.getElementById("rawView").hidden = which!=="raw";
+  document.getElementById("navForm").classList.toggle("on",which==="form");
+  document.getElementById("navRaw").classList.toggle("on",which==="raw");
+  if(which==="raw") loadRaw();
+}
+
+function fileLink(f){return f?`<a href="${esc(f.href)}">${esc(f.name)}</a>`:"";}
+function drawRaw(){
+  const q=(document.getElementById("q").value||"").toLowerCase();
+  const rows=responses.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
+  if(!rows.length){document.getElementById("rawTable").innerHTML=`<p class="note">${responses.length?"No responses match that search.":"No responses yet."}</p>`; return;}
+  document.getElementById("rawTable").innerHTML=`<div class="scroll"><table><thead><tr>
+    <th>Submitted</th><th>Auditor</th><th>Conducted</th><th>DB</th><th>Audit</th><th>Stock output</th><th>Files</th><th></th>
+  </tr></thead><tbody>${rows.map(r=>`<tr>
+    <td>${esc(r.submittedAt)}</td>
+    <td>${esc(r.auditor)}${r.auditorOther?`<div class="mini">${esc(r.auditorOther)}</div>`:""}</td>
+    <td>${esc(r.conducted)}${r.conducted==="No"?`<div class="mini">${esc(r.cancelDate)} ${esc(r.cancelReason)}</div>`:`<div class="mini">${esc(r.date)}</div>`}</td>
+    <td>${esc(r.dbName)}<div class="mini">${esc(r.dbCode)}</div></td>
+    <td>${esc(r.auditType)}<div class="mini">${esc([r.srName,r.secName].filter(Boolean).join(" · "))}</div></td>
+    <td>${r.productCount?`${r.productCount} products<br>Saleable ${qty(r.saleableTotal)}<br>Unsaleable ${qty(r.unsaleableTotal)} <button type="button" data-out="${esc(r.id)}">View</button>`:"—"}</td>
+    <td>${[fileLink(r.consent),fileLink(r.srProof),fileLink(r.secProof)].filter(Boolean).join("<br>")}</td>
+    <td><button type="button" class="g" data-del="${esc(r.id)}">Remove</button></td>
+  </tr>`).join("")}</tbody></table></div>`;
+  document.querySelectorAll("[data-out]").forEach(btn=>btn.onclick=()=>showOutput(btn.dataset.out));
+  document.querySelectorAll("[data-del]").forEach(btn=>btn.onclick=()=>removeResponse(btn.dataset.del));
+}
+
+function showOutput(id){
+  const r=responses.find(x=>x.id===id);
+  if(!r) return;
+  const old=document.getElementById("pop"); if(old) old.remove();
+  const box=document.createElement("div");
+  box.id="pop"; box.className="out";
+  const rows=(r.stockRows||[]).slice(0,300);
+  box.innerHTML=`<h3>Output from ${esc(r.stockFileName||"physical stock file")}</h3><div class="scroll"><table><thead><tr><th>Product code</th><th>Product description</th><th>MRP</th><th>Saleable</th><th>Unsaleable</th></tr></thead><tbody>
+    ${rows.map(row=>`<tr><td>${esc(row.code)}</td><td>${esc(row.desc)}</td><td>${esc(row.mrp||"")}</td><td>${qty(row.saleable)}</td><td>${qty(row.unsaleable)}</td></tr>`).join("")}
+  </tbody></table></div>`;
+  document.getElementById("rawTable").prepend(box);
+}
+
+async function loadRaw(){
+  const [r,m]=await Promise.all([fetch("/api/responses"),fetch("/api/recipients")]);
+  responses=await r.json();
+  recipients=await m.json();
+  drawRaw();
+  drawChips();
+}
+function drawChips(){
+  document.getElementById("chips").innerHTML=recipients.map(e=>`<span class="chip">${esc(e)}<button type="button" data-mail="${esc(e)}" aria-label="Remove ${esc(e)}">×</button></span>`).join("")||`<span class="note">No email addresses yet.</span>`;
+  document.querySelectorAll("[data-mail]").forEach(btn=>btn.onclick=()=>removeMail(btn.dataset.mail));
+}
+async function addMail(){
+  const email=document.getElementById("mailIn").value.trim();
+  const msg=document.getElementById("mailMsg");
+  msg.textContent="";
+  const res=await fetch("/api/recipients",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok){msg.textContent=data.error||"Could not add that email."; return;}
+  recipients=data; document.getElementById("mailIn").value=""; drawChips();
+}
+async function removeMail(email){
+  const res=await fetch("/api/recipients",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+  const data=await res.json().catch(()=>({}));
+  if(res.ok){recipients=data; drawChips();}
+}
+async function sendMail(){
+  const msg=document.getElementById("mailMsg");
+  msg.textContent="Sending…";
+  const res=await fetch("/api/mail",{method:"POST"});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok){msg.textContent=data.error||"Could not send the dump."; return;}
+  const failed=(data.failed||[]).map(f=>f.email+": "+f.error).join(" ");
+  msg.textContent=(data.sent||[]).length?`Sent to ${(data.sent||[]).join(", ")}. ${failed}`:(failed||"Nothing was sent.");
+}
+async function removeResponse(id){
+  if(!confirm("Remove this response from the raw data?")) return;
+  const res=await fetch("/api/responses/"+encodeURIComponent(id),{method:"DELETE"});
+  if(res.ok) loadRaw();
+}
+
+document.getElementById("navForm").onclick=()=>show("form");
+document.getElementById("navRaw").onclick=()=>show("raw");
+document.getElementById("q").oninput=drawRaw;
+document.getElementById("addMail").onclick=addMail;
+document.getElementById("sendMail").onclick=sendMail;
+renderForm();
+</script>
+</body>
+</html>
