@@ -30,6 +30,10 @@ struct StockRow {
     mrp: f64,
     saleable: f64,
     unsaleable: f64,
+    #[serde(default)]
+    physical: f64,
+    #[serde(default)]
+    result: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -51,6 +55,16 @@ struct Stored {
     date: String,
     db_code: String,
     db_name: String,
+    #[serde(default)]
+    location: String,
+    #[serde(default)]
+    state: String,
+    #[serde(default)]
+    asm: String,
+    #[serde(default)]
+    sde: String,
+    #[serde(default)]
+    dse: String,
     stock_file_name: String,
     stock_rows: Vec<StockRow>,
     consent: Option<StoredFile>,
@@ -88,6 +102,16 @@ struct Incoming {
     db_code: String,
     #[serde(default)]
     db_name: String,
+    #[serde(default)]
+    location: String,
+    #[serde(default)]
+    state: String,
+    #[serde(default)]
+    asm: String,
+    #[serde(default)]
+    sde: String,
+    #[serde(default)]
+    dse: String,
     #[serde(default)]
     stock_file_name: String,
     #[serde(default)]
@@ -306,6 +330,11 @@ fn save_response(body: &[u8], app: &Arc<Mutex<App>>) -> (String, String, String,
         date: incoming.date.trim().to_string(),
         db_code: incoming.db_code.trim().to_string(),
         db_name: incoming.db_name.trim().to_string(),
+        location: incoming.location.trim().to_string(),
+        state: incoming.state.trim().to_string(),
+        asm: incoming.asm.trim().to_string(),
+        sde: incoming.sde.trim().to_string(),
+        dse: incoming.dse.trim().to_string(),
         stock_file_name: incoming.stock_file_name.trim().to_string(),
         stock_rows: incoming.stock_rows,
         consent,
@@ -641,6 +670,11 @@ fn public_response(r: &Stored) -> serde_json::Value {
         "date": r.date,
         "dbCode": r.db_code,
         "dbName": r.db_name,
+        "location": r.location,
+        "state": r.state,
+        "asm": r.asm,
+        "sde": r.sde,
+        "dse": r.dse,
         "stockFileName": r.stock_file_name,
         "productCount": r.stock_rows.len(),
         "saleableTotal": saleable,
@@ -663,7 +697,7 @@ fn public_response(r: &Stored) -> serde_json::Value {
 
 fn responses_csv(rows: &[Stored]) -> String {
     let mut out = String::from("\u{feff}");
-    out.push_str("Submitted at,Auditor,Other auditor,Conducted as planned,Date of audit,DB Code,DB Name,Physical stock file,Products,Saleable total,Unsaleable total,Consent form,Audit type,Sales return outlet code,Sales return outlet name,Value of sales return,Proof of sales return,Secondary outlet code,Secondary outlet name,Value of secondary,Proof of secondary,Cancellation reason,Cancellation date\n");
+    out.push_str("Submitted at,Auditor,Other auditor,Conducted as planned,Date of audit,DB Code,DB Name,Location,State,ASM,SDE,DSE / TGO,Physical stock file,Products,Saleable total,Unsaleable total,Consent form,Audit type,Sales return outlet code,Sales return outlet name,Value of sales return,Proof of sales return,Secondary outlet code,Secondary outlet name,Value of secondary,Proof of secondary,Cancellation reason,Cancellation date\n");
     for r in rows {
         let saleable: f64 = r.stock_rows.iter().map(|row| row.saleable).sum();
         let unsaleable: f64 = r.stock_rows.iter().map(|row| row.unsaleable).sum();
@@ -681,6 +715,11 @@ fn responses_csv(rows: &[Stored]) -> String {
             &r.date,
             &r.db_code,
             &r.db_name,
+            &r.location,
+            &r.state,
+            &r.asm,
+            &r.sde,
+            &r.dse,
             &r.stock_file_name,
             &products,
             &saleable_text,
@@ -705,12 +744,13 @@ fn responses_csv(rows: &[Stored]) -> String {
 
 fn stock_csv(rows: &[Stored]) -> String {
     let mut out = String::from("\u{feff}");
-    out.push_str("Submitted at,Auditor,DB Code,DB Name,Stock file,Product code,Product description,MRP,Saleable,Unsaleable\n");
+    out.push_str("Submitted at,Auditor,DB Code,DB Name,Stock file,Product code,Product description,MRP,Saleable,Unsaleable,Physical,Result\n");
     for r in rows {
         for row in &r.stock_rows {
             let mrp = num(row.mrp);
             let saleable = num(row.saleable);
             let unsaleable = num(row.unsaleable);
+            let physical = num(row.physical);
             out.push_str(&csv_line(&[
                 &r.submitted_at,
                 &r.auditor,
@@ -722,6 +762,8 @@ fn stock_csv(rows: &[Stored]) -> String {
                 &mrp,
                 &saleable,
                 &unsaleable,
+                &physical,
+                &row.result,
             ]));
             out.push('\n');
         }
