@@ -27,6 +27,9 @@ h2{margin:0 0 6px;font-size:22px}
 label{display:block;font-weight:700;margin:14px 0 6px}
 .req{color:#b42318}
 input,select,textarea{width:100%;font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+input[readonly]{background:#eef3fb;color:#16302b}
+.check{display:flex;align-items:center;gap:8px;font-weight:800;margin-top:16px}
+.check input{width:auto;margin:0}
 textarea{width:100%;min-height:96px;font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 14px}
 .grid2 label{margin-top:8px}
@@ -104,6 +107,7 @@ a.btn{display:inline-block;background:var(--acc);color:#fff;text-decoration:none
     </div>
   </section>
 </main>
+<script src="/map.js"></script>
 <script>
 const AUDITORS = ["Arindom Basumatary","Kaushal Kumar Verma","Khushi Rajput","Sudipta Halder","chetan.b","Mallikarjun.P","NIKHIL","Nithishwaran.B","Charan","Manish.G","Manvendra.V","Mukeshsharma.S","Abhay.s","Akash.P","Chetan.K","Hitesh.G","shubham.d","Yash.S","Prithvi","Akhilesh.R","ALLA BALA VARADHAN REDDY","Chokka Durga Prasad","erapogu.n","Narasapurapu Tharun Kumar","YUVATEJA","Rakesh.Ra","Nathish","Pachaiappan","Pradeepan.R","Ragul.R","BALASUBRAMANIAN.A","Veeramani","Thamaraikannan.M","Naveen","ASHUTOSH SUDHIR UTTEKAR","AYUSH PARIDA","NEEL SHUKLA","RITESH","Abhishek","Parth Sorathia","Siddharth.D","Dilip","Tushar Dhoot","Roshan.D","Ajith","Other"];
 const BOTH = "Both (Sales Return + Secondary)";
@@ -113,7 +117,7 @@ let recipients = [];
 let error = "";
 
 function blank(){
-  return {step:"start",auditor:"",auditorOther:"",conducted:"",date:"",dbCode:"",dbName:"",loc:"",stt:"",asm:"",sde:"",dse:"",stockFileName:"",stockRows:[],stockError:"",E:{},consent:null,auditType:"",srCode:"",srName:"",srValue:"",srProof:null,secCode:"",secName:"",secValue:"",secProof:null,cancelReason:"",cancelDate:"",busy:false};
+  return {step:"start",auditor:"",auditorOther:"",conducted:"",date:"",dbCode:"",dbName:"",dbRaw:"",channel:"",division:"",loc:"",stt:"",asm:"",sde:"",dse:"",mapNote:"",detailsOk:false,fixField:"",stockFileName:"",stockRows:[],stockError:"",E:{},consent:null,auditType:"",srCode:"",srName:"",srValue:"",srProof:null,secCode:"",secName:"",secValue:"",secProof:null,cancelReason:"",cancelDate:"",busy:false};
 }
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function qty(n){n=Number(n)||0;return (Math.round(n*100)/100).toLocaleString("en-IN");}
@@ -123,6 +127,18 @@ function sel(key,options,placeholder){
   return `<select data-k="${key}">${[`<option value="">${esc(placeholder)}</option>`].concat(options.map(o=>`<option value="${esc(o)}"${o===cur?" selected":""}>${esc(o)}</option>`)).join("")}</select>`;
 }
 function inp(key,type){return `<input data-k="${key}" type="${type||"text"}" value="${esc(S[key]||"")}">`;}
+function ro(key){return `<input data-k="${key}" type="text" value="${esc(S[key]||"")}" readonly>`;}
+function fieldKey(text){
+  const n=String(text||"").toLowerCase().replace(/[^a-z]/g,"");
+  if(!n) return "";
+  if(n.includes("dbcode")||n.includes("distributorcode")) return "dbCode";
+  if(n.includes("dbname")||n.includes("distributorname")) return "dbName";
+  if(n.includes("loc")||n.includes("region")||n.includes("city")) return "loc";
+  if(n.includes("state")) return "stt";
+  if(n.includes("asm")) return "asm";
+  if(n.includes("sde")||n.includes("tso")) return "sde";
+  return "";
+}
 function fileNote(file){return file?`<p class="ok">Loaded: ${esc(file.name)}</p>`:"";}
 
 function pk(d){
@@ -196,28 +212,44 @@ function stepHtml(){
     return html;
   }
   if(S.step==="stock"){
-    return `<h2>Stock Correction</h2><p class="hint">Same count as the stock audit. System stock is read from the file. Enter the physical cases and pieces. Matched, buffer stock and excess show in the result.</p>
-      <div class="grid2">
-        <div>${lab("Date of audit",true)}${inp("date","date")}</div>
-        <div>${lab("DB Code (Exp- GT0100020205200002020520)",true)}${inp("dbCode")}</div>
-        <div>${lab("DB Name",true)}${inp("dbName")}</div>
-        <div>${lab("Location (city)",false)}${inp("loc")}</div>
-        <div>${lab("State",false)}${inp("stt")}</div>
-        <div>${lab("ASM name",false)}${inp("asm")}</div>
-        <div>${lab("SDE name",false)}${inp("sde")}</div>
+    let html=`<h2>Stock Correction</h2><p class="hint">Enter the date of audit first. The physical stock file is read after that. DB code and DB name come from the file. Location, state, ASM name and SDE / TSO name come from the distributor mapping and cannot be typed over.</p>
+      ${lab("Date of audit",true)}${inp("date","date")}`;
+    if(!S.date){
+      return html+`<p class="note">The stock upload opens after the date of audit is filled.</p><div class="row"><button class="g" id="back" type="button">Back</button></div>`;
+    }
+    html+=`${lab("Physical Stock file( only excel file)",true)}
+      <input id="stockFile" type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
+      ${S.stockFileName?`<p class="ok">Loaded: ${esc(S.stockFileName)}</p>`:""}
+      <p class="note">Accepted product headers: Product Description (or Product Name), MRP, SaleableQty (or Saleable Stock), UnSaleableQty (optional). The distributor code in the file is read as well.</p>
+      ${S.stockError?`<p class="err">${esc(S.stockError)}</p>`:""}`;
+    if(S.stockFileName){
+      html+=`<div class="grid2">
+        <div>${lab("DB Code",true)}${ro("dbCode")}</div>
+        <div>${lab("DB Name",true)}${ro("dbName")}</div>
+        <div>${lab("Location",true)}${ro("loc")}</div>
+        <div>${lab("State",true)}${ro("stt")}</div>
+        <div>${lab("ASM name",true)}${ro("asm")}</div>
+        <div>${lab("SDE / TSO name",true)}${ro("sde")}</div>
         <div>${lab("DSE / TGO name",false)}${inp("dse")}</div>
       </div>
-      ${lab("Physical Stock file( only excel file)",true)}
-      <input id="stockFile" type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
-      ${S.stockFileName&&S.stockRows.length?`<p class="ok">Loaded: ${esc(S.stockFileName)}</p>`:""}
-      <p class="note">Accepted headers: Product Description (or Product Name), MRP, SaleableQty (or Saleable Stock), UnSaleableQty (optional).</p>
-      ${S.stockError?`<p class="err">${esc(S.stockError)}</p>`:""}
-      ${auditHtml()}
-      ${lab("Distributor consent form",true)}
-      <input id="consentFile" type="file">
-      ${fileNote(S.consent)}
-      ${lab("What is the Audit which you are doing",true)}${sel("auditType",["Sales Return","Secondary",BOTH],"Choose")}
-      <div class="row"><button class="g" id="back" type="button">Back</button><button class="p" id="next" type="button"${S.busy?" disabled":""}>Next</button></div>`;
+      ${S.dbRaw?`<p class="note">Code in the file: ${esc(S.dbRaw)}. Channel ${esc(S.channel||"—")} and the last 7 digits are the DB code.</p>`:""}
+      ${S.mapNote?`<p class="note">${esc(S.mapNote)}</p>`:""}
+      <label class="check"><input id="detailsOk" type="checkbox"${S.detailsOk?" checked":""}> Details are correct</label>`;
+      if(!S.detailsOk){
+        const fk=fieldKey(S.fixField);
+        const labels={dbCode:"DB Code",dbName:"DB Name",loc:"Location",stt:"State",asm:"ASM name",sde:"SDE / TSO name"};
+        html+=`${lab("Which field is incorrect",true)}<input id="fixField" type="text" value="${esc(S.fixField||"")}" placeholder="Location, State, ASM name, SDE / TSO name, DB Code or DB Name">`;
+        if(fk) html+=`${lab("Correct value for "+labels[fk],true)}<input id="fixValue" type="text" value="${esc(S[fk]||"")}">`;
+        else if(String(S.fixField||"").trim()) html+=`<p class="note">Type Location, State, ASM name, SDE / TSO name, DB Code, or DB Name.</p>`;
+      } else {
+        html+=`<p class="hint">System stock is read from the file. Enter the physical cases and pieces. Matched, buffer stock and excess show in the result.</p>${auditHtml()}
+          ${lab("Distributor consent form",true)}<input id="consentFile" type="file">${fileNote(S.consent)}
+          ${lab("What is the Audit which you are doing",true)}${sel("auditType",["Sales Return","Secondary",BOTH],"Choose")}
+          <div class="row"><button class="g" id="back" type="button">Back</button><button class="p" id="next" type="button"${S.busy?" disabled":""}>Next</button></div>`;
+        return html;
+      }
+    }
+    return html+`<div class="row"><button class="g" id="back" type="button">Back</button></div>`;
   }
   const sales = S.step==="sales" || S.step==="both";
   const sec = S.step==="secondary" || S.step==="both";
@@ -251,8 +283,29 @@ function renderForm(){
         if(S.auditor!=="Other") S.auditorOther="";
         renderForm();
       }
+      if(S.step==="stock" && el.dataset.k==="date") renderForm();
     });
   });
+  const fix=document.getElementById("fixField");
+  if(fix) fix.addEventListener("input",()=>{
+    const prev=fieldKey(S.fixField);
+    S.fixField=fix.value;
+    if(fieldKey(S.fixField)!==prev){
+      renderForm();
+      const again=document.getElementById("fixField");
+      if(again){again.focus(); again.setSelectionRange(again.value.length, again.value.length);}
+    }
+  });
+  const fixValue=document.getElementById("fixValue");
+  if(fixValue) fixValue.addEventListener("input",()=>{
+    const k=fieldKey(S.fixField);
+    if(!k) return;
+    S[k]=fixValue.value;
+    const locked=document.querySelector(`input[readonly][data-k="${k}"]`);
+    if(locked) locked.value=fixValue.value;
+  });
+  const details=document.getElementById("detailsOk");
+  if(details) details.onchange=()=>{S.detailsOk=details.checked; renderForm();};
   const n=document.getElementById("next"); if(n) n.onclick=onNext;
   const b=document.getElementById("back"); if(b) b.onclick=onBack;
   const s=document.getElementById("send"); if(s) s.onclick=onSend;
@@ -287,8 +340,10 @@ function onNext(){
     S.step="stock";
   } else if(S.step==="stock"){
     if(need(!S.date,"Date of audit is required.")) return renderForm();
-    if(need(!S.dbCode.trim(),"DB Code is required.")) return renderForm();
-    if(need(!S.dbName.trim(),"DB Name is required.")) return renderForm();
+    if(need(!S.stockFileName,"Upload the physical stock Excel file so it can be read.")) return renderForm();
+    if(need(!S.dbCode.trim(),"DB Code could not be read from the Excel file.")) return renderForm();
+    if(need(!S.dbName.trim(),"DB Name could not be read from the Excel file.")) return renderForm();
+    if(need(!S.detailsOk,"Confirm that the details are correct before the stock count.")) return renderForm();
     if(need(!S.stockRows.length,S.stockError||"Upload the physical stock Excel file so it can be read.")) return renderForm();
     if(need(!S.consent,"Distributor consent form is required.")) return renderForm();
     if(need(!S.auditType,"What is the Audit which you are doing is required.")) return renderForm();
@@ -300,6 +355,85 @@ function onBack(){
   error="";
   S.step = S.step==="stock" ? "start" : "stock";
   renderForm();
+}
+
+function cellStr(v){
+  if(v==null||v==="") return "";
+  if(typeof v==="number"&&isFinite(v)) return String(v).replace(/\.0$/,"");
+  return String(v).trim();
+}
+function normHead(v){return cellStr(v).toLowerCase().replace(/[\s_\-./()]/g,"");}
+function modeOf(arr){
+  const c={}; let best="", n=0;
+  arr.forEach(v=>{if(!v) return; c[v]=(c[v]||0)+1; if(c[v]>n){n=c[v]; best=v;}});
+  return best;
+}
+function splitCode(raw){
+  const s=cellStr(raw).replace(/\s+/g,"");
+  if(/^[A-Za-z]{2}\d{7,}$/.test(s)) return {raw:s,channel:s.slice(0,2).toUpperCase(),db:s.slice(-7)};
+  const digits=s.replace(/\D/g,"");
+  if(digits.length>=7&&digits.length<=12) return {raw:s,channel:"",db:digits.slice(-7)};
+  return null;
+}
+function findIdentity(a){
+  let codeCol=-1, nameCol=-1, divCol=-1, header=-1;
+  for(let i=0;i<Math.min(a.length,25);i++){
+    const h=(a[i]||[]).map(normHead);
+    let ci=-1, ni=-1, di=-1;
+    h.forEach((n,j)=>{
+      if(ci<0&&/^(distributorcode|dbcode|customercode|dcode)$/.test(n)) ci=j;
+      if(ni<0&&/^(distributorname|dbname|customername)$/.test(n)) ni=j;
+      if(di<0&&/^(division|spart)$/.test(n)) di=j;
+    });
+    if(ci>-1){codeCol=ci; nameCol=ni; divCol=di; header=i; break;}
+  }
+  const codes=[], names=[], divs=[];
+  if(header>-1){
+    for(let j=header+1;j<a.length;j++){
+      const r=a[j]||[];
+      const parsed=splitCode(r[codeCol]);
+      if(parsed) codes.push(parsed);
+      if(nameCol>-1){const nm=cellStr(r[nameCol]); if(nm&&!/^null$/i.test(nm)) names.push(nm);}
+      if(divCol>-1){const d=cellStr(r[divCol]).toUpperCase(); if(/^[A-Z]{2}$/.test(d)) divs.push(d);}
+    }
+  }
+  if(!codes.length){
+    for(let i=0;i<Math.min(a.length,40);i++){
+      for(const cell of (a[i]||[])){
+        const parsed=splitCode(cell);
+        if(parsed&&parsed.channel){codes.push(parsed); break;}
+      }
+      if(codes.length) break;
+    }
+  }
+  const chosen=codes.find(c=>c.raw===modeOf(codes.map(c=>c.raw)))||{raw:"",channel:"",db:""};
+  return {raw:chosen.raw,channel:chosen.channel,db:chosen.db,name:modeOf(names),division:modeOf(divs)};
+}
+function applyIdentity(info){
+  S.dbRaw=info.raw||"";
+  S.channel=info.channel||"";
+  S.division=info.division||"";
+  S.dbCode=info.db||"";
+  S.dbName=info.name||"";
+  S.loc=""; S.stt=""; S.asm=""; S.sde="";
+  S.mapNote=""; S.detailsOk=false; S.fixField="";
+  const map=window.DBMAP||{};
+  let hit=null;
+  if(info.channel&&info.db&&info.division) hit=map[info.channel+"|"+info.db+"|"+info.division];
+  if(!hit&&info.channel&&info.db) hit=map[info.channel+"|"+info.db];
+  if(!hit&&info.db){
+    const keys=Object.keys(map).filter(k=>k.endsWith("|"+info.db)&&k.split("|").length===2);
+    const key=keys.length===1?keys[0]:keys.find(k=>k.startsWith("GT|"));
+    if(key){hit=map[key]; S.channel=key.slice(0,key.indexOf("|"));}
+  }
+  if(hit){
+    S.loc=hit[0]||""; S.stt=hit[1]||""; S.asm=hit[2]||""; S.sde=hit[3]||"";
+    if(!S.dbName) S.dbName=hit[4]||"";
+    S.mapNote=info.division
+      ? "Matched channel, DB code and division in the distributor mapping. Location is the region. These fields stay locked."
+      : "Matched channel and DB code in the distributor mapping. Location is the region. These fields stay locked.";
+  } else if(info.db) S.mapNote="This DB code was not found in the distributor mapping file.";
+  else S.mapNote="The file has no distributor code to map.";
 }
 
 function parseAoa(a){
@@ -356,19 +490,30 @@ async function onStock(file){
   try{
     const buf=await file.arrayBuffer();
     const wb=XLSX.read(new Uint8Array(buf),{type:"array"});
-    let best=null;
+    let best=null, identity=null, named=null;
     wb.SheetNames.forEach(name=>{
       const aoa=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true});
       const parsed=parseAoa(aoa);
-      if(parsed&&parsed.rows.length&&(!best||parsed.rows.length>best.rows.length)) best=parsed;
+      const id=findIdentity(aoa);
+      if(parsed&&parsed.rows.length&&(!best||parsed.rows.length>best.rows.length)){
+        best=parsed;
+        if(id.db||id.name) identity=id;
+      }
+      if(id.db&&!named) named=id;
     });
+    S.E={}; S.detailsOk=false; S.fixField="";
+    if(!identity) identity=named;
     if(!best){
       S.stockRows=[]; S.stockFileName=file.name;
       S.stockError="Could not find the product name column and the saleable stock column. Accepted headers: Product Description (or Product Name), MRP, SaleableQty (or Saleable Stock), UnSaleableQty (optional).";
+      if(identity) applyIdentity(identity);
+      else applyIdentity({raw:"",channel:"",db:"",name:"",division:""});
     } else {
       S.stockRows=best.rows.map(r=>({code:r.code,desc:r.desc,mrp:r.mrp,saleable:r.saleable,unsaleable:r.unsaleable,sys:r.saleable,uns:r.unsaleable,k:(r.code||r.desc)+"|"+r.mrp}));
       S.stockFileName=file.name; S.stockError="";
-      if(best.distributor&&!S.dbName) S.dbName=best.distributor;
+      const info=identity||{raw:"",channel:"",db:"",name:"",division:""};
+      if(!info.name&&best.distributor) info.name=best.distributor;
+      applyIdentity(info);
     }
   }catch(e){
     S.stockRows=[]; S.stockError="Could not read this file.";

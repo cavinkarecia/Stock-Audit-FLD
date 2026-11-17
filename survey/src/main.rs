@@ -13,6 +13,7 @@ use lettre::{SmtpTransport, Transport};
 use serde::{Deserialize, Serialize};
 
 const SURVEY_HTML: &str = include_str!("../public/survey.html");
+const MAP_JS: &str = include_str!("../public/map.js");
 const MAX_BODY: usize = 20 * 1024 * 1024;
 const MAX_FILE: usize = 8 * 1024 * 1024;
 
@@ -255,6 +256,7 @@ fn find_sep(buf: &[u8]) -> Option<usize> {
 fn get(path: &str, app: &Arc<Mutex<App>>) -> (String, String, String, Vec<u8>) {
     match path {
         "/" | "/index.html" | "/survey" => html(SURVEY_HTML),
+        "/map.js" => text(200, "application/javascript; charset=utf-8", MAP_JS),
         "/healthz" => text(200, "text/plain; charset=utf-8", "ok"),
         "/api/responses" => {
             let app = app.lock().unwrap_or_else(|e| e.into_inner());
