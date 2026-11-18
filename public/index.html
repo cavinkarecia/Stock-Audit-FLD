@@ -401,6 +401,33 @@ a.href="mailto:"+encodeURI(mto.value.trim())+"?subject="+encodeURIComponent(sub)
 m.textContent=(saved?"Excel saved: "+nm+". ":"Could not save the Excel file here. ")+"Your email app should open now. If it does not, tap Open the email, then attach the Excel file.";try{a.click()}catch(e){}}
 document.getElementById("xm").onclick=function(){sendX(true)};document.getElementById("xd").onclick=function(){sendX(false)};
 
+function applySurvey(d){
+  if(!d)return;
+  var set=function(id,key){var el=document.getElementById(id);if(d[key]==null||d[key]==="")return;S[key]=d[key];if(el)el.value=d[key];};
+  set("dist","dist");set("date","date");set("dbc","dbc");set("loc","loc");set("stt","stt");set("asm","asm");set("sde","sde");set("dse","dse");
+  var aud=document.getElementById("aud"),ax=document.getElementById("audx");
+  if(d.aud&&aud){
+    var found=false;[].forEach.call(aud.options,function(o){if(o.value===d.aud)found=true});
+    if(found){S.aud=d.aud;aud.value=d.aud;if(ax)ax.style.display=d.aud==="Other"?"":"none"}
+    else{S.aud="Other";aud.value="Other";if(ax){ax.style.display="";ax.value=d.aud;S.audx=d.aud}}
+  }
+  if(d.lock)["dist","date","dbc","loc","stt","asm","sde"].forEach(function(id){var el=document.getElementById(id);if(el)el.readOnly=true});
+  S.distSet=true;
+  if(d.rows&&d.rows.length){
+    setRows(d.rows.map(function(r){return{code:r.code||"",desc:r.desc||"",mrp:+r.mrp||0,sys:+r.sys||+r.saleable||0,uns:+r.uns||+r.unsaleable||0,k:r.k||((r.code||r.desc)+"|"+(+r.mrp||0))}}),d.fileName||"stock file","");
+  }else{save();draw()}
+}
+if(/[?&]embed=1/.test(location.search)){
+  document.body.classList.add("embed");
+  var es=document.createElement("style");
+  es.textContent="body.embed header.hero{display:none}body.embed main{padding-top:8px}";
+  document.head.appendChild(es);
+}
+window.addEventListener("message",function(ev){
+  if(ev.origin!==location.origin||!ev.data||ev.data.type!=="survey-audit")return;
+  applySurvey(ev.data);
+});
+
 draw();
 </script><script>
 (function(){var k=document.getElementById("kpis"),pf=document.getElementById("pfill"),pt=document.getElementById("ptxt"),pe=document.getElementById("pev");

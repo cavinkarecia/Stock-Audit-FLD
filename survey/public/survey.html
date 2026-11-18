@@ -65,6 +65,8 @@ a.btn{display:inline-block;background:var(--acc);color:#fff;text-decoration:none
 .thanks h2{font-size:32px}
 .search{max-width:320px}
 .mini{font-size:13px;color:var(--mut)}
+iframe.audit{width:100%;height:78vh;min-height:640px;border:1px solid var(--line);border-radius:16px;background:#f3f6f7;margin-top:12px}
+main.wide{max-width:1180px}
 @media(max-width:720px){.mail .add,header .wrap{display:block}nav{margin-top:14px}}
 </style>
 </head>
@@ -242,7 +244,8 @@ function stepHtml(){
         if(fk) html+=`${lab("Correct value for "+labels[fk],true)}<input id="fixValue" type="text" value="${esc(S[fk]||"")}">`;
         else if(String(S.fixField||"").trim()) html+=`<p class="note">Type Location, State, ASM name, SDE / TSO name, DB Code, or DB Name.</p>`;
       } else {
-        html+=`<p class="hint">System stock is read from the file. Enter the physical cases and pieces. Matched, buffer stock and excess show in the result.</p>${auditHtml()}
+        html+=`<p class="hint">This is the same stock audit as the main page. Distributor, date, location, state, ASM and SDE / TSO are already filled. Count the physical stock here.</p>
+          <iframe class="audit" id="auditFrame" title="System vs physical" src="/?embed=1"></iframe>
           ${lab("Distributor consent form",true)}<input id="consentFile" type="file">${fileNote(S.consent)}
           ${lab("What is the Audit which you are doing",true)}${sel("auditType",["Sales Return","Secondary",BOTH],"Choose")}
           <div class="row"><button class="g" id="back" type="button">Back</button><button class="p" id="next" type="button"${S.busy?" disabled":""}>Next</button></div>`;
@@ -274,6 +277,7 @@ function stepHtml(){
 }
 
 function renderForm(){
+  document.querySelector("main").classList.toggle("wide", S.step==="stock" && !!S.detailsOk);
   document.getElementById("formView").innerHTML = (error?`<p class="err">${esc(error)}</p>`:"") + stepHtml();
   document.querySelectorAll("[data-k]").forEach(el=>{
     el.addEventListener("input",()=>{S[el.dataset.k]=el.value;});
@@ -312,6 +316,12 @@ function renderForm(){
   const again=document.getElementById("again"); if(again) again.onclick=()=>{Object.assign(S,blank()); error=""; renderForm();};
   const gr=document.getElementById("gotoRaw"); if(gr) gr.onclick=()=>show("raw");
   const stock=document.getElementById("stockFile"); if(stock) stock.onchange=e=>onStock(e.target.files[0]);
+  const frame=document.getElementById("auditFrame");
+  if(frame) frame.onload=()=>frame.contentWindow.postMessage({
+    type:"survey-audit",dist:S.dbName,date:S.date,dbc:S.dbCode,loc:S.loc,stt:S.stt,asm:S.asm,sde:S.sde,dse:S.dse,
+    aud:S.auditor==="Other"?S.auditorOther:S.auditor,fileName:S.stockFileName,lock:true,
+    rows:(S.stockRows||[]).map(r=>({code:r.code,desc:r.desc,mrp:r.mrp,sys:r.sys,uns:r.uns,k:r.k}))
+  },location.origin);
   const consent=document.getElementById("consentFile"); if(consent) consent.onchange=e=>onProof(e.target.files[0],"consent");
   const sr=document.getElementById("srFile"); if(sr) sr.onchange=e=>onProof(e.target.files[0],"srProof");
   const sec=document.getElementById("secFile"); if(sec) sec.onchange=e=>onProof(e.target.files[0],"secProof");
