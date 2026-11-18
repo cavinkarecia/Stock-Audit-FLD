@@ -21,7 +21,7 @@ nav{display:flex;gap:8px}
 nav button,button,.linkish{font:inherit;font-weight:700;border-radius:12px;border:1px solid transparent;padding:10px 14px;cursor:pointer}
 nav button{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
 nav button.on{background:#fff;color:#0b1f4d}
-main{max-width:980px;margin:0 auto;padding:22px 16px 64px}
+main{max-width:1240px;margin:0 auto;padding:22px 16px 64px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 1px 2px rgba(20,50,45,.04)}
 h2{margin:0 0 6px;font-size:22px}
 .hint{color:var(--mut);margin:0 0 16px}
@@ -66,7 +66,25 @@ a.btn{display:inline-block;background:var(--acc);color:#fff;text-decoration:none
 .thanks h2{font-size:32px}
 .search{max-width:320px}
 .mini{font-size:13px;color:var(--mut)}
-tr.brand td{background:#e8eefc;color:#0b1f4d;font-weight:800;position:sticky;top:32px}
+.bx{background:#fff;border:2px solid hsl(var(--bh) 62% 42%);border-radius:10px;margin:14px 0;overflow:hidden}
+.bx>summary{cursor:pointer;padding:10px 12px;background:hsl(var(--bh) 62% 38%);color:#fff;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-weight:800;list-style:none}
+.bx>summary::-webkit-details-marker{display:none}
+.bxn{font-size:16px}.bxs{font-weight:600;font-size:12px}
+.atbl{overflow:auto}
+.atbl table{min-width:980px}
+.atbl th{white-space:nowrap}
+.atbl td small{display:block;color:var(--mut);font-size:12px}
+.bx input{width:78px;padding:8px}
+.bx input.pk{width:64px}
+tr[data-k]{background:hsl(var(--bh) 78% 90%);box-shadow:inset 8px 0 0 hsl(var(--bh) 62% 40%)}
+.pr{display:flex;gap:10px;align-items:center}
+.pi{width:44px;height:56px;object-fit:contain;border-radius:6px;background:#fff;border:1px solid var(--line);cursor:pointer;flex:0 0 44px}
+.br{display:inline-block;font-size:11px;font-weight:800;padding:1px 9px;border-radius:99px;color:#fff;background:hsl(var(--bh) 62% 38%);margin-top:3px}
+.act{font-weight:800;font-size:15px;display:block;margin-top:2px}
+tr.rb .res{background:#c2570a}tr.rf .res{background:#1d4ed8}tr.rm .res{background:#17803d}
+tr.rb .res,tr.rf .res,tr.rm .res{color:#fff;border-radius:8px}
+tr.rb .res small,tr.rf .res small,tr.rm .res small{color:rgba(255,255,255,.92)}
+tr.rb .res .act,tr.rf .res .act,tr.rb .res .pill,tr.rf .res .pill,tr.rm .res .pill{color:#fff;background:transparent}
 @media(max-width:720px){.mail .add,header .wrap{display:block}nav{margin-top:14px}}
 </style>
 </head>
@@ -119,7 +137,7 @@ let recipients = [];
 let error = "";
 
 function blank(){
-  return {step:"start",auditor:"",auditorOther:"",conducted:"",date:"",dbCode:"",dbName:"",dbRaw:"",channel:"",division:"",loc:"",stt:"",asm:"",sde:"",dse:"",mapNote:"",detailsOk:false,fixField:"",stockFileName:"",stockRows:[],stockError:"",E:{},consent:null,auditType:"",srCode:"",srName:"",srValue:"",srProof:null,secCode:"",secName:"",secValue:"",secProof:null,cancelReason:"",cancelDate:"",busy:false};
+  return {step:"start",auditor:"",auditorOther:"",conducted:"",date:"",dbCode:"",dbName:"",dbRaw:"",channel:"",division:"",loc:"",stt:"",asm:"",sde:"",dse:"",mapNote:"",detailsOk:false,fixField:"",stockFileName:"",stockRows:[],stockError:"",E:{},P:{},photos:{},consent:null,auditType:"",srCode:"",srName:"",srValue:"",srProof:null,secCode:"",secName:"",secValue:"",secProof:null,cancelReason:"",cancelDate:"",busy:false};
 }
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function qty(n){n=Number(n)||0;return (Math.round(n*100)/100).toLocaleString("en-IN");}
@@ -150,28 +168,50 @@ function pk(d){
   const r=/(\d+)\s*(?:PCS|PC|SET|P)(?=[^A-Za-z]|$|RL)/gi;
   let x,l=0;
   while((x=r.exec(d))) l=+x[1];
-  return l||1;
+  return l;
 }
+function cases(p,k){
+  p=Math.abs(Number(p)||0);
+  if(!k) return qty(p)+" pcs";
+  const c=Math.floor(p/k), r=p%k, t=[];
+  if(c||!r) t.push(c+(c===1?" case":" cases"));
+  if(r) t.push(r+" pcs");
+  return t.join(" ");
+}
+function inr(n){return "₹"+Math.round(Number(n)||0).toLocaleString("en-IN");}
 function calcRow(r){
   const e=S.E[r.k]||{};
-  const k=pk(r.desc);
+  const k=+S.P[r.k]||pk(r.desc);
   const has=(e.c!==undefined&&e.c!=="")||(e.l!==undefined&&e.l!=="");
   const ph=(+e.c||0)*k+(+e.l||0);
   const diff=has?ph-(+r.sys||0):0;
-  const st=!has?"n":diff===0?"m":diff<0?"b":"f";
-  return {k,has,ph,diff,st};
+  const u=+r.uns||0;
+  const has2=(e.uc!==undefined&&e.uc!=="")||(e.ul!==undefined&&e.ul!=="");
+  const ph2=(+e.uc||0)*k+(+e.ul||0);
+  const diff2=has2?ph2-u:0;
+  return {r,b:brand(r.desc),k,e,has,ph,diff,st:!has?"n":diff===0?"m":diff<0?"b":"f",val:Math.abs(diff)*(+r.mrp||0),u,has2,ph2,diff2,st2:!has2?"n":diff2===0?"m":diff2<0?"s":"x",val2:Math.abs(diff2)*(+r.mrp||0)};
 }
-function pill(x){
-  if(x.st==="n") return '<span class="pill pn">Not counted</span>';
-  if(x.st==="m") return '<span class="pill pm">Matched</span>';
-  if(x.st==="b") return '<span class="pill pb">Buffer stock</span> '+qty(Math.abs(x.diff));
-  return '<span class="pill pf">Excess</span> '+qty(Math.abs(x.diff));
+function resHtml(x){
+  let sale;
+  if(x.st==="n") sale='<span class="pill pn">Not counted</span>';
+  else {
+    const physical='<small>Physical '+cases(x.ph,x.k)+"</small>";
+    if(x.st==="m") sale='<span class="pill pm">Matched</span>'+physical;
+    else if(x.st==="b") sale='<span class="pill pb">BUFFER STOCK</span><span class="act">Bill '+cases(x.diff,x.k)+"</span><small>"+inr(x.val)+" at MRP</small>"+physical;
+    else sale='<span class="pill pf">FORWARD STOCK</span><span class="act">Sales return '+cases(x.diff,x.k)+"</span><small>"+inr(x.val)+" at MRP</small>"+physical;
+  }
+  let unsale="";
+  if(x.st2==="n"){ if(x.u>0) unsale='<span class="pill pn">Unsaleable not counted</span><small>System unsaleable '+cases(x.u,x.k)+"</small>"; }
+  else if(x.st2==="m") unsale='<span class="pill pm">Unsaleable matched</span>';
+  else unsale='<span class="pill '+(x.st2==="s"?"pb":"pf")+'">UNSALEABLE '+(x.st2==="s"?"SHORT":"EXCESS")+'</span><span class="act">'+cases(x.diff2,x.k)+"</span><small>"+(x.st2==="s"?"System more than physical":"Physical more than system")+", "+inr(x.val2)+"</small>";
+  return unsale?sale+'<div style="margin-top:6px;padding-top:5px;border-top:1px dashed rgba(128,128,128,.6)">'+unsale+"</div>":sale;
 }
 function resultName(x){
-  if(x.st==="n") return "Not counted";
-  if(x.st==="m") return "Matched";
-  if(x.st==="b") return "Buffer stock";
-  return "Excess";
+  const sale=x.st==="n"?"Not counted":x.st==="m"?"Matched":x.st==="b"?"Buffer stock":"Forward stock";
+  if(!x.has2) return x.u>0?sale+" · Unsaleable not counted":sale;
+  if(x.st2==="m") return sale+" · Unsaleable matched";
+  if(x.st2==="s") return sale+" · Unsaleable short";
+  return sale+" · Unsaleable excess";
 }
 function kpiHtml(){
   const c={n:0,m:0,b:0,f:0};
@@ -191,26 +231,74 @@ function brand(d){
   if(/^(IN|IND|INDI|INDIC|INDICA|INDCA|INDEASY|INDIEASY)$/.test(w)) w="INDICA";
   return A[w]||w||"OTHER";
 }
+function hues(){
+  const names=[];
+  (S.stockRows||[]).forEach(r=>{const b=brand(r.desc); if(!names.includes(b)) names.push(b);});
+  names.sort();
+  const BH={};
+  names.forEach((b,i)=>{BH[b]=Math.round((i*137.508)%360);});
+  return BH;
+}
+function boxStat(L){
+  const c=L.filter(x=>x.has).length, m=L.filter(x=>x.st==="m").length, bf=L.filter(x=>x.st==="b").length, f=L.filter(x=>x.st==="f").length;
+  return L.length+" products · counted "+c+" · matched "+m+" · buffer "+bf+" · forward "+f;
+}
+function genImg(d,b,h){
+  const u=String(d||"").toUpperCase();
+  const m=/(\d+(?:\.\d+)?)\s*(ML|LTR|GM|KG|G|L)(?![A-Z])/.exec(u);
+  const sz=m?m[1]+m[2].toLowerCase():"";
+  const liq=m&&/^(ML|LTR|L)$/.test(m[2]);
+  const c1="hsl("+h+",62%,40%)", c2="hsl("+h+",70%,88%)";
+  const shape=liq?'<rect x="22" y="6" width="20" height="10" rx="3" fill="'+c1+'"/><rect x="14" y="14" width="36" height="58" rx="9" fill="'+c2+'" stroke="'+c1+'" stroke-width="3"/>':/JAR|PKL|PICKLE/.test(u)?'<rect x="14" y="8" width="36" height="9" rx="3" fill="'+c1+'"/><rect x="12" y="16" width="40" height="56" rx="7" fill="'+c2+'" stroke="'+c1+'" stroke-width="3"/>':'<path d="M14 10h36l-3 62H17z" fill="'+c2+'" stroke="'+c1+'" stroke-width="3"/>';
+  return "data:image/svg+xml;utf8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 80">'+shape+'<rect x="16" y="34" width="32" height="20" rx="3" fill="'+c1+'"/><text x="32" y="43" font-size="6.5" font-family="Arial" font-weight="700" fill="#fff" text-anchor="middle">'+esc(String(b).slice(0,9))+'</text><text x="32" y="51" font-size="6" font-family="Arial" fill="#fff" text-anchor="middle">'+esc(sz)+"</text></svg>");
+}
 function auditHtml(){
   const rows=S.stockRows||[];
   if(!rows.length) return "";
+  const BH=hues();
   const groups={};
-  rows.forEach((r,i)=>{const b=brand(r.desc);(groups[b]=groups[b]||[]).push({r,i});});
-  const body=Object.keys(groups).sort().map(b=>{
+  rows.forEach(r=>{const x=calcRow(r); (groups[x.b]=groups[x.b]||[]).push(x);});
+  const order=["CHIK","MEERA","KARTHIKA","RUCHI","BHIMA","CAVINS","MAA","CAKE","RUSK (MILK & ELACHI)","SPINZ"];
+  const head=`<tr><th>Product</th><th>Pcs / case</th><th>System stock</th><th>Physical cases</th><th>Loose pcs</th><th>Unsaleable system</th><th>Unsaleable cases</th><th>Unsaleable pcs</th><th>Result and action</th></tr>`;
+  const blocks=Object.keys(groups).sort((a,b)=>{
+    const i=order.indexOf(a), j=order.indexOf(b);
+    return (i<0?99:i)-(j<0?99:j)||(a<b?-1:1);
+  }).map(b=>{
     const items=groups[b];
-    const head=`<tr class="brand"><td colspan="8">${esc(b)} · ${items.length}</td></tr>`;
-    const lines=items.map(({r,i})=>{
-      const e=S.E[r.k]||{};
-      const x=calcRow(r);
-      return `<tr><td>${esc(r.code)}</td><td>${esc(r.desc)}</td><td>${esc(r.mrp||"")}</td><td>${qty(r.sys)}</td><td>${qty(r.uns)}</td>
-        <td><input class="count" data-i="${i}" data-f="c" inputmode="numeric" value="${esc(e.c||"")}" aria-label="Cases"></td>
-        <td><input class="count" data-i="${i}" data-f="l" inputmode="numeric" value="${esc(e.l||"")}" aria-label="Pieces"></td>
-        <td data-res="${i}">${pill(x)}</td></tr>`;
+    const lines=items.map(x=>{
+      const r=x.r, e=x.e;
+      const img=S.photos[r.k]||genImg(r.desc,b,BH[b]);
+      return `<tr class="r${x.st}" data-k="${esc(r.k)}" style="--bh:${BH[b]}"><td data-l="Product"><div class="pr"><img class="pi" data-k="${esc(r.k)}" src="${img}" alt=""><div><b>${esc(r.desc)}</b><small>${esc(r.code)} · MRP ${inr(r.mrp)}</small><span class="br">${esc(b)}</span></div></div></td>
+        <td data-l="Pcs / case"><input class="pk" type="number" min="1" inputmode="numeric" placeholder="?" value="${esc(S.P[r.k]||x.k||"")}"></td>
+        <td data-l="System stock" class="sys"><b>${cases(r.sys,x.k)}</b><small>${qty(r.sys)} pcs</small></td>
+        <td data-l="Physical cases"><input class="pc" type="number" min="0" inputmode="numeric" value="${esc(e.c==null?"":e.c)}"></td>
+        <td data-l="Loose pcs"><input class="pl" type="number" min="0" inputmode="numeric" value="${esc(e.l==null?"":e.l)}"></td>
+        <td data-l="Unsaleable system" class="usys"><b>${cases(x.u,x.k)}</b><small>${qty(x.u)} pcs</small></td>
+        <td data-l="Unsaleable cases"><input class="uc" type="number" min="0" inputmode="numeric" value="${esc(e.uc==null?"":e.uc)}"></td>
+        <td data-l="Unsaleable pcs"><input class="ul" type="number" min="0" inputmode="numeric" value="${esc(e.ul==null?"":e.ul)}"></td>
+        <td data-l="Result" class="res">${resHtml(x)}</td></tr>`;
     }).join("");
-    return head+lines;
+    return `<details class="bx" open data-b="${esc(b)}" style="--bh:${BH[b]}"><summary><span class="bxn">${esc(b)}</span><span class="bxs">${boxStat(items)}</span></summary><div class="atbl"><table><thead>${head}</thead><tbody>${lines}</tbody></table></div></details>`;
   }).join("");
-  return `<div class="out"><h3>System vs physical</h3><div class="kpis" id="auditKpis">${kpiHtml()}</div>
-    <div class="scroll"><table><thead><tr><th>Code</th><th>Product</th><th>MRP</th><th>System</th><th>Unsaleable</th><th>Cases</th><th>Pieces</th><th>Result</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
+  return `<div id="auditBox">${blocks}</div>`;
+}
+function followHtml(){
+  let html=`${lab("Distributor consent form",true)}<input id="consentFile" type="file">${fileNote(S.consent)}
+    ${lab("What is the Audit which you are doing",true)}${sel("auditType",["Sales Return","Secondary",BOTH],"Choose")}`;
+  if(S.auditType==="Sales Return"||S.auditType===BOTH){
+    html+=`${lab("Outlet Code ( Sales Return)",true)}${inp("srCode")}
+      ${lab("Outlet Name( Sales Return)",true)}${inp("srName")}
+      ${lab("Value of Sales return",true)}${inp("srValue")}
+      ${lab("Proof of sales return",true)}<input id="srFile" type="file">${fileNote(S.srProof)}`;
+  }
+  if(S.auditType==="Secondary"||S.auditType===BOTH){
+    html+=`${lab("Outlet Code( Secondary)",true)}${inp("secCode")}
+      ${lab("Outlet Name (Secondary)",true)}${inp("secName")}
+      ${lab("Value of secondary",true)}${inp("secValue")}
+      ${lab("Proof of secondary",true)}<input id="secFile" type="file">${fileNote(S.secProof)}`;
+  }
+  html+=`<div class="row"><button class="g" id="back" type="button">Back</button><button class="p" id="send" type="button"${S.busy?" disabled":""}>Submit</button></div>`;
+  return html;
 }
 function stockHtml(){return auditHtml();}
 
@@ -264,10 +352,7 @@ function stepHtml(){
         if(fk) html+=`${lab("Correct value for "+labels[fk],true)}<input id="fixValue" type="text" value="${esc(S[fk]||"")}">`;
         else if(String(S.fixField||"").trim()) html+=`<p class="note">Type Location, State, ASM name, SDE / TSO name, DB Code, or DB Name.</p>`;
       } else {
-        html+=auditHtml()+`
-          ${lab("Distributor consent form",true)}<input id="consentFile" type="file">${fileNote(S.consent)}
-          ${lab("What is the Audit which you are doing",true)}${sel("auditType",["Sales Return","Secondary",BOTH],"Choose")}
-          <div class="row"><button class="g" id="back" type="button">Back</button><button class="p" id="next" type="button"${S.busy?" disabled":""}>Next</button></div>`;
+        html+=auditHtml()+followHtml();
         return html;
       }
     }
@@ -305,7 +390,7 @@ function renderForm(){
         if(S.auditor!=="Other") S.auditorOther="";
         renderForm();
       }
-      if(S.step==="stock" && el.dataset.k==="date") renderForm();
+      if(S.step==="stock" && (el.dataset.k==="date"||el.dataset.k==="auditType")) renderForm();
     });
   });
   const fix=document.getElementById("fixField");
@@ -337,21 +422,75 @@ function renderForm(){
   const consent=document.getElementById("consentFile"); if(consent) consent.onchange=e=>onProof(e.target.files[0],"consent");
   const sr=document.getElementById("srFile"); if(sr) sr.onchange=e=>onProof(e.target.files[0],"srProof");
   const sec=document.getElementById("secFile"); if(sec) sec.onchange=e=>onProof(e.target.files[0],"secProof");
-  document.querySelectorAll(".count").forEach(el=>{
-    el.addEventListener("input",()=>{
-      const r=S.stockRows[+el.dataset.i];
-      if(!r) return;
-      S.E[r.k]=S.E[r.k]||{};
-      S.E[r.k][el.dataset.f]=el.value;
-      const cell=el.closest("tr").querySelector("[data-res]");
-      if(cell) cell.innerHTML=pill(calcRow(r));
-      const kpis=document.getElementById("auditKpis");
-      if(kpis) kpis.innerHTML=kpiHtml();
+  const box=document.getElementById("auditBox");
+  if(box){
+    box.addEventListener("input",ev=>{
+      const t=ev.target, tr=t.closest("tr");
+      if(!tr||!tr.dataset.k) return;
+      const k=tr.dataset.k;
+      S.E[k]=S.E[k]||{};
+      if(t.classList.contains("pk")){ if(t.value) S.P[k]=+t.value; else delete S.P[k]; }
+      else if(t.classList.contains("pc")) S.E[k].c=t.value;
+      else if(t.classList.contains("pl")) S.E[k].l=t.value;
+      else if(t.classList.contains("uc")) S.E[k].uc=t.value;
+      else if(t.classList.contains("ul")) S.E[k].ul=t.value;
+      paintRow(tr);
     });
-  });
+    box.addEventListener("click",ev=>{
+      const t=ev.target;
+      if(!t.classList||!t.classList.contains("pi")) return;
+      const k=t.dataset.k, file=document.createElement("input");
+      file.type="file"; file.accept="image/*";
+      file.onchange=()=>{
+        const pic=file.files&&file.files[0];
+        if(!pic) return;
+        const reader=new FileReader();
+        reader.onload=()=>{ S.photos[k]=String(reader.result||""); t.src=S.photos[k]; };
+        reader.readAsDataURL(pic);
+      };
+      file.click();
+    });
+  }
 }
 
 function need(cond,msg){if(cond){error=msg;return true;}return false;}
+function paintRow(tr){
+  const r=(S.stockRows||[]).find(z=>z.k===tr.dataset.k);
+  if(!r) return;
+  const x=calcRow(r);
+  tr.className="r"+x.st;
+  const sys=tr.querySelector(".sys");
+  if(sys) sys.innerHTML=`<b>${cases(r.sys,x.k)}</b><small>${qty(r.sys)} pcs</small>`;
+  const usys=tr.querySelector(".usys");
+  if(usys) usys.innerHTML=`<b>${cases(x.u,x.k)}</b><small>${qty(x.u)} pcs</small>`;
+  const cell=tr.querySelector(".res");
+  if(cell) cell.innerHTML=resHtml(x);
+  const bx=tr.closest(".bx");
+  if(bx){
+    const items=(S.stockRows||[]).map(calcRow).filter(z=>z.b===bx.dataset.b);
+    const label=bx.querySelector(".bxs");
+    if(label) label.textContent=boxStat(items);
+  }
+}
+function stockReady(){
+  if(need(!S.date,"Date of audit is required.")) return false;
+  if(need(!S.stockFileName,"Upload the physical stock Excel file so it can be read.")) return false;
+  if(need(!S.dbCode.trim(),"DB Code could not be read from the Excel file.")) return false;
+  if(need(!S.dbName.trim(),"DB Name could not be read from the Excel file.")) return false;
+  if(need(!S.detailsOk,"Confirm that the details are correct before the stock count.")) return false;
+  if(need(!S.stockRows.length,S.stockError||"Upload the physical stock Excel file so it can be read.")) return false;
+  if(need(!S.consent,"Distributor consent form is required.")) return false;
+  if(need(!S.auditType,"What is the Audit which you are doing is required.")) return false;
+  if(S.auditType==="Sales Return"||S.auditType===BOTH){
+    if(need(!S.srCode.trim()||!S.srName.trim()||!S.srValue.trim(),"Sales return outlet code, name and value are required.")) return false;
+    if(need(!S.srProof,"Proof of sales return is required.")) return false;
+  }
+  if(S.auditType==="Secondary"||S.auditType===BOTH){
+    if(need(!S.secCode.trim()||!S.secName.trim()||!S.secValue.trim(),"Secondary outlet code, name and value are required.")) return false;
+    if(need(!S.secProof,"Proof of secondary is required.")) return false;
+  }
+  return true;
+}
 function onNext(){
   error="";
   if(S.step==="start"){
@@ -523,7 +662,7 @@ async function onStock(file){
       }
       if(id.db&&!named) named=id;
     });
-    S.E={}; S.detailsOk=false; S.fixField="";
+    S.E={}; S.P={}; S.photos={}; S.detailsOk=false; S.fixField="";
     if(!identity) identity=named;
     if(!best){
       S.stockRows=[]; S.stockFileName=file.name;
@@ -606,7 +745,8 @@ function branchOk(){
 
 async function onSend(){
   error="";
-  if(!branchOk()) return renderForm();
+  if(S.step==="stock"){ if(!stockReady()) return renderForm(); }
+  else if(!branchOk()) return renderForm();
   S.busy=true; renderForm();
   try{
     const res=await fetch("/api/responses",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload())});
