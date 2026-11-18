@@ -14,7 +14,7 @@ fn main() {
         eprintln!("failed to bind {addr}: {err}");
         std::process::exit(1);
     });
-    eprintln!("stock audit listening on {addr}");
+    eprintln!("stock audit and survey listening on {addr}");
 
     for incoming in listener.incoming() {
         match incoming {

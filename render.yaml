@@ -2,6 +2,8 @@ services:
   - type: web
     name: stock-audit-fld
     runtime: rust
+    branch: main
+    autoDeploy: true
     buildCommand: cargo build --release
     startCommand: ./target/release/stock_audit_fld
     healthCheckPath: /healthz
