@@ -6,3 +6,6 @@ edition = "2021"
 [[bin]]
 name = "stock_audit_fld"
 path = "src/main.rs"
+
+[dependencies]
+stock_correction_survey = { path = "survey" }

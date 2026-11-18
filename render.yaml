@@ -1,9 +1,7 @@
 services:
   - type: web
-    name: stock-correction-survey
+    name: stock-audit-fld
     runtime: rust
-    branch: cursor/stock-correction-survey
-    rootDir: survey
     buildCommand: cargo build --release
-    startCommand: ./target/release/stock_correction_survey
+    startCommand: ./target/release/stock_audit_fld
     healthCheckPath: /healthz
