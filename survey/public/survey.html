@@ -109,7 +109,7 @@ tr.brand td{background:#e8eefc;color:#0b1f4d;font-weight:800;position:sticky;top
     </div>
   </section>
 </main>
-<script src="/map.js"></script>
+<script src="/map.js" async></script>
 <script>
 const AUDITORS = ["Arindom Basumatary","Kaushal Kumar Verma","Khushi Rajput","Sudipta Halder","chetan.b","Mallikarjun.P","NIKHIL","Nithishwaran.B","Charan","Manish.G","Manvendra.V","Mukeshsharma.S","Abhay.s","Akash.P","Chetan.K","Hitesh.G","shubham.d","Yash.S","Prithvi","Akhilesh.R","ALLA BALA VARADHAN REDDY","Chokka Durga Prasad","erapogu.n","Narasapurapu Tharun Kumar","YUVATEJA","Rakesh.Ra","Nathish","Pachaiappan","Pradeepan.R","Ragul.R","BALASUBRAMANIAN.A","Veeramani","Thamaraikannan.M","Naveen","ASHUTOSH SUDHIR UTTEKAR","AYUSH PARIDA","NEEL SHUKLA","RITESH","Abhishek","Parth Sorathia","Siddharth.D","Dilip","Tushar Dhoot","Roshan.D","Ajith","Other"];
 const BOTH = "Both (Sales Return + Secondary)";
@@ -264,7 +264,7 @@ function stepHtml(){
         if(fk) html+=`${lab("Correct value for "+labels[fk],true)}<input id="fixValue" type="text" value="${esc(S[fk]||"")}">`;
         else if(String(S.fixField||"").trim()) html+=`<p class="note">Type Location, State, ASM name, SDE / TSO name, DB Code, or DB Name.</p>`;
       } else {
-        html+=auditHtml();
+        html+=auditHtml()+`
           ${lab("Distributor consent form",true)}<input id="consentFile" type="file">${fileNote(S.consent)}
           ${lab("What is the Audit which you are doing",true)}${sel("auditType",["Sales Return","Secondary",BOTH],"Choose")}
           <div class="row"><button class="g" id="back" type="button">Back</button><button class="p" id="next" type="button"${S.busy?" disabled":""}>Next</button></div>`;
