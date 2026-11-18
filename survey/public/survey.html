@@ -65,8 +65,7 @@ a.btn{display:inline-block;background:var(--acc);color:#fff;text-decoration:none
 .thanks h2{font-size:32px}
 .search{max-width:320px}
 .mini{font-size:13px;color:var(--mut)}
-iframe.audit{width:100%;height:78vh;min-height:640px;border:1px solid var(--line);border-radius:16px;background:#f3f6f7;margin-top:12px}
-main.wide{max-width:1180px}
+tr.brand td{background:#e8eefc;color:#0b1f4d;font-weight:800;position:sticky;top:32px}
 @media(max-width:720px){.mail .add,header .wrap{display:block}nav{margin-top:14px}}
 </style>
 </head>
@@ -178,16 +177,36 @@ function kpiHtml(){
   (S.stockRows||[]).forEach(r=>{c[calcRow(r).st]++;});
   return `<div class="k"><b>${S.stockRows.length}</b><span>Products</span></div><div class="k"><b>${c.m}</b><span>Matched</span></div><div class="k"><b>${c.b}</b><span>Buffer stock</span></div><div class="k"><b>${c.f}</b><span>Excess</span></div><div class="k"><b>${c.n}</b><span>Not counted</span></div>`;
 }
+function brand(d){
+  const u0=String(d||"").toUpperCase();
+  if(/\bCAKE/.test(u0)) return "CAKE";
+  if(/\bRUSK|ELACHI/.test(u0)) return "RUSK (MILK & ELACHI)";
+  let w=u0.replace(/'S\b/g,"").split(/\s+/)[0].replace(/[^A-Z]/g,"");
+  const A={CAVIN:"CAVINS",GARD:"GARDEN",IND:"INDICA",INDCA:"INDICA",INDIC:"INDICA"};
+  if(/^KARTHIKA/.test(w)) w="KARTHIKA";
+  if(/^CHIK/.test(w)) w="CHIK";
+  if(/^SPINZ/.test(w)) w="SPINZ";
+  if(/^CAVIN/.test(w)) w="CAVINS";
+  if(/^(IN|IND|INDI|INDIC|INDICA|INDCA|INDEASY|INDIEASY)$/.test(w)) w="INDICA";
+  return A[w]||w||"OTHER";
+}
 function auditHtml(){
   const rows=S.stockRows||[];
   if(!rows.length) return "";
-  const body=rows.map((r,i)=>{
-    const e=S.E[r.k]||{};
-    const x=calcRow(r);
-    return `<tr><td>${esc(r.code)}</td><td>${esc(r.desc)}</td><td>${esc(r.mrp||"")}</td><td>${qty(r.sys)}</td><td>${qty(r.uns)}</td>
-      <td><input class="count" data-i="${i}" data-f="c" inputmode="numeric" value="${esc(e.c||"")}" aria-label="Cases"></td>
-      <td><input class="count" data-i="${i}" data-f="l" inputmode="numeric" value="${esc(e.l||"")}" aria-label="Pieces"></td>
-      <td data-res="${i}">${pill(x)}</td></tr>`;
+  const groups={};
+  rows.forEach((r,i)=>{const b=brand(r.desc);(groups[b]=groups[b]||[]).push({r,i});});
+  const body=Object.keys(groups).sort().map(b=>{
+    const items=groups[b];
+    const head=`<tr class="brand"><td colspan="8">${esc(b)} · ${items.length}</td></tr>`;
+    const lines=items.map(({r,i})=>{
+      const e=S.E[r.k]||{};
+      const x=calcRow(r);
+      return `<tr><td>${esc(r.code)}</td><td>${esc(r.desc)}</td><td>${esc(r.mrp||"")}</td><td>${qty(r.sys)}</td><td>${qty(r.uns)}</td>
+        <td><input class="count" data-i="${i}" data-f="c" inputmode="numeric" value="${esc(e.c||"")}" aria-label="Cases"></td>
+        <td><input class="count" data-i="${i}" data-f="l" inputmode="numeric" value="${esc(e.l||"")}" aria-label="Pieces"></td>
+        <td data-res="${i}">${pill(x)}</td></tr>`;
+    }).join("");
+    return head+lines;
   }).join("");
   return `<div class="out"><h3>System vs physical</h3><div class="kpis" id="auditKpis">${kpiHtml()}</div>
     <div class="scroll"><table><thead><tr><th>Code</th><th>Product</th><th>MRP</th><th>System</th><th>Unsaleable</th><th>Cases</th><th>Pieces</th><th>Result</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
@@ -244,8 +263,7 @@ function stepHtml(){
         if(fk) html+=`${lab("Correct value for "+labels[fk],true)}<input id="fixValue" type="text" value="${esc(S[fk]||"")}">`;
         else if(String(S.fixField||"").trim()) html+=`<p class="note">Type Location, State, ASM name, SDE / TSO name, DB Code, or DB Name.</p>`;
       } else {
-        html+=`<p class="hint">This is the same stock audit as the main page. Distributor, date, location, state, ASM and SDE / TSO are already filled. Count the physical stock here.</p>
-          <iframe class="audit" id="auditFrame" title="System vs physical" src="/?embed=1"></iframe>
+        html+=auditHtml();
           ${lab("Distributor consent form",true)}<input id="consentFile" type="file">${fileNote(S.consent)}
           ${lab("What is the Audit which you are doing",true)}${sel("auditType",["Sales Return","Secondary",BOTH],"Choose")}
           <div class="row"><button class="g" id="back" type="button">Back</button><button class="p" id="next" type="button"${S.busy?" disabled":""}>Next</button></div>`;
@@ -277,7 +295,6 @@ function stepHtml(){
 }
 
 function renderForm(){
-  document.querySelector("main").classList.toggle("wide", S.step==="stock" && !!S.detailsOk);
   document.getElementById("formView").innerHTML = (error?`<p class="err">${esc(error)}</p>`:"") + stepHtml();
   document.querySelectorAll("[data-k]").forEach(el=>{
     el.addEventListener("input",()=>{S[el.dataset.k]=el.value;});
@@ -316,12 +333,6 @@ function renderForm(){
   const again=document.getElementById("again"); if(again) again.onclick=()=>{Object.assign(S,blank()); error=""; renderForm();};
   const gr=document.getElementById("gotoRaw"); if(gr) gr.onclick=()=>show("raw");
   const stock=document.getElementById("stockFile"); if(stock) stock.onchange=e=>onStock(e.target.files[0]);
-  const frame=document.getElementById("auditFrame");
-  if(frame) frame.onload=()=>frame.contentWindow.postMessage({
-    type:"survey-audit",dist:S.dbName,date:S.date,dbc:S.dbCode,loc:S.loc,stt:S.stt,asm:S.asm,sde:S.sde,dse:S.dse,
-    aud:S.auditor==="Other"?S.auditorOther:S.auditor,fileName:S.stockFileName,lock:true,
-    rows:(S.stockRows||[]).map(r=>({code:r.code,desc:r.desc,mrp:r.mrp,sys:r.sys,uns:r.uns,k:r.k}))
-  },location.origin);
   const consent=document.getElementById("consentFile"); if(consent) consent.onchange=e=>onProof(e.target.files[0],"consent");
   const sr=document.getElementById("srFile"); if(sr) sr.onchange=e=>onProof(e.target.files[0],"srProof");
   const sec=document.getElementById("secFile"); if(sec) sec.onchange=e=>onProof(e.target.files[0],"secProof");
