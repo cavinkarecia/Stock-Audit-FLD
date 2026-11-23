@@ -68,6 +68,16 @@ struct Stored {
     dse: String,
     stock_file_name: String,
     stock_rows: Vec<StockRow>,
+    #[serde(default)]
+    product_count: usize,
+    #[serde(default)]
+    saleable_total: f64,
+    #[serde(default)]
+    unsaleable_total: f64,
+    #[serde(default)]
+    stock_link: String,
+    #[serde(default)]
+    stock_file: Option<StoredFile>,
     consent: Option<StoredFile>,
     audit_type: String,
     sr_code: String,
@@ -116,7 +126,16 @@ struct Incoming {
     #[serde(default)]
     stock_file_name: String,
     #[serde(default)]
+    #[allow(dead_code)]
     stock_rows: Vec<StockRow>,
+    #[serde(default)]
+    stock_book: Option<IncomingFile>,
+    #[serde(default)]
+    product_count: usize,
+    #[serde(default)]
+    saleable_total: f64,
+    #[serde(default)]
+    unsaleable_total: f64,
     consent: Option<IncomingFile>,
     #[serde(default)]
     audit_type: String,
@@ -347,6 +366,70 @@ fn delete(path: &str, body: &[u8], app: &Arc<Mutex<App>>) -> (String, String, St
     }
 }
 
+fn drive_upload(name: &str, bytes: &[u8]) -> Result<String, String> {
+    let token = drive_token()?;
+    let folder = env::var("GOOGLE_DRIVE_FOLDER").unwrap_or_default();
+    let mut meta = serde_json::json!({
+        "name": name,
+        "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    });
+    if !folder.trim().is_empty() {
+        meta["parents"] = serde_json::json!([folder.trim()]);
+    }
+    let boundary = "stockauditbound";
+    let head = format!(
+        "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{meta}\r\n--{boundary}\r\nContent-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n"
+    );
+    let mut body = Vec::with_capacity(head.len() + bytes.len() + 32);
+    body.extend(head.as_bytes());
+    body.extend(bytes);
+    body.extend(format!("\r\n--{boundary}--").as_bytes());
+    let response = ureq::post("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink")
+        .set("Authorization", &format!("Bearer {token}"))
+        .set("Content-Type", &format!("multipart/related; boundary={boundary}"))
+        .send_bytes(&body)
+        .map_err(|_| "Could not store the Excel file in Google Drive.".to_string())?;
+    let parsed: serde_json::Value = response
+        .into_json()
+        .map_err(|_| "Google Drive did not return a file link.".to_string())?;
+    let id = parsed["id"].as_str().unwrap_or("").to_string();
+    if id.is_empty() {
+        return Err("Google Drive did not return a file link.".into());
+    }
+    let _ = ureq::post(&format!("https://www.googleapis.com/drive/v3/files/{id}/permissions"))
+        .set("Authorization", &format!("Bearer {token}"))
+        .set("Content-Type", "application/json")
+        .send_json(serde_json::json!({"role": "reader", "type": "anyone"}));
+    Ok(parsed["webViewLink"]
+        .as_str()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| format!("https://drive.google.com/file/d/{id}/view")))
+}
+
+fn drive_token() -> Result<String, String> {
+    let id = env::var("GOOGLE_CLIENT_ID").unwrap_or_default();
+    let secret = env::var("GOOGLE_CLIENT_SECRET").unwrap_or_default();
+    let refresh = env::var("GOOGLE_REFRESH_TOKEN").unwrap_or_default();
+    if id.is_empty() || secret.is_empty() || refresh.is_empty() {
+        return Err("Google Drive is not connected on the server yet.".into());
+    }
+    let response = ureq::post("https://oauth2.googleapis.com/token")
+        .send_form(&[
+            ("client_id", id.as_str()),
+            ("client_secret", secret.as_str()),
+            ("refresh_token", refresh.as_str()),
+            ("grant_type", "refresh_token"),
+        ])
+        .map_err(|_| "Google Drive rejected the saved connection.".to_string())?;
+    let parsed: serde_json::Value = response
+        .into_json()
+        .map_err(|_| "Google Drive did not return an access token.".to_string())?;
+    parsed["access_token"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Google Drive did not return an access token.".into())
+}
+
 fn save_response(body: &[u8], app: &Arc<Mutex<App>>) -> (String, String, String, Vec<u8>) {
     let incoming: Incoming = match serde_json::from_slice(body) {
         Ok(v) => v,
@@ -370,6 +453,48 @@ fn save_response(body: &[u8], app: &Arc<Mutex<App>>) -> (String, String, String,
         Ok(v) => v,
         Err(msg) => return json_err(400, &msg),
     };
+    let (stock_link, stock_file) = if incoming.conducted == "Yes" {
+        let book = match incoming.stock_book.as_ref() {
+            Some(file) => file,
+            None => return json_err(400, "The physical stock Excel could not be made."),
+        };
+        let bytes = match decode_b64(&book.data_base64) {
+            Ok(v) => v,
+            Err(msg) => return json_err(400, &msg),
+        };
+        if bytes.len() > MAX_FILE {
+            return json_err(400, "The physical stock Excel is larger than 8 MB.");
+        }
+        let name = if book.name.trim().is_empty() {
+            "physical-stock.xlsx".to_string()
+        } else {
+            safe_name(&book.name)
+        };
+        match drive_upload(&name, &bytes) {
+            Ok(link) => (link, None),
+            Err(msg) if msg == "Google Drive is not connected on the server yet." => {
+                if let Err(err) = fs::create_dir_all(&folder) {
+                    return json_err(500, &format!("Could not store the Excel file: {err}"));
+                }
+                let stored_name = format!("stock__{name}");
+                let path = folder.join(&stored_name);
+                if let Err(err) = fs::write(&path, &bytes) {
+                    return json_err(500, &format!("Could not store the Excel file: {err}"));
+                }
+                (
+                    format!("/api/files/{id}/stock"),
+                    Some(StoredFile {
+                        name,
+                        content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".into(),
+                        path: path.to_string_lossy().to_string(),
+                    }),
+                )
+            }
+            Err(msg) => return json_err(502, &msg),
+        }
+    } else {
+        (String::new(), None)
+    };
     let stored = Stored {
         id,
         submitted_at: now_ist(),
@@ -385,7 +510,12 @@ fn save_response(body: &[u8], app: &Arc<Mutex<App>>) -> (String, String, String,
         sde: incoming.sde.trim().to_string(),
         dse: incoming.dse.trim().to_string(),
         stock_file_name: incoming.stock_file_name.trim().to_string(),
-        stock_rows: incoming.stock_rows,
+        stock_rows: Vec::new(),
+        product_count: incoming.product_count,
+        saleable_total: incoming.saleable_total,
+        unsaleable_total: incoming.unsaleable_total,
+        stock_link,
+        stock_file,
         consent,
         audit_type: incoming.audit_type.trim().to_string(),
         sr_code: incoming.sr_code.trim().to_string(),
@@ -436,8 +566,11 @@ fn validate(inc: &Incoming) -> Result<(), String> {
     if inc.db_name.trim().is_empty() {
         return Err("DB Name is required.".into());
     }
-    if inc.stock_rows.is_empty() {
-        return Err("Physical Stock file has to be read before you continue.".into());
+    if inc.conducted == "Yes" {
+        match inc.stock_book.as_ref() {
+            Some(file) if !file.data_base64.trim().is_empty() => {}
+            _ => return Err("The physical stock Excel could not be made.".into()),
+        }
     }
     if inc.consent.is_none() {
         return Err("Distributor consent form is required.".into());
@@ -672,6 +805,7 @@ fn serve_file(path: &str, app: &Arc<Mutex<App>>) -> (String, String, String, Vec
         "consent" => resp.consent.as_ref(),
         "sales-return" => resp.sr_proof.as_ref(),
         "secondary" => resp.sec_proof.as_ref(),
+        "stock" => resp.stock_file.as_ref(),
         _ => None,
     };
     let Some(file) = file else {
@@ -708,8 +842,21 @@ fn public_response(r: &Stored) -> serde_json::Value {
             })
         })
     };
-    let saleable: f64 = r.stock_rows.iter().map(|row| row.saleable).sum();
-    let unsaleable: f64 = r.stock_rows.iter().map(|row| row.unsaleable).sum();
+    let product_count = if r.product_count > 0 {
+        r.product_count
+    } else {
+        r.stock_rows.len()
+    };
+    let saleable = if r.stock_rows.is_empty() {
+        r.saleable_total
+    } else {
+        r.stock_rows.iter().map(|row| row.saleable).sum()
+    };
+    let unsaleable = if r.stock_rows.is_empty() {
+        r.unsaleable_total
+    } else {
+        r.stock_rows.iter().map(|row| row.unsaleable).sum()
+    };
     serde_json::json!({
         "id": r.id,
         "submittedAt": r.submitted_at,
@@ -725,10 +872,11 @@ fn public_response(r: &Stored) -> serde_json::Value {
         "sde": r.sde,
         "dse": r.dse,
         "stockFileName": r.stock_file_name,
-        "productCount": r.stock_rows.len(),
+        "productCount": product_count,
         "saleableTotal": saleable,
         "unsaleableTotal": unsaleable,
-        "stockRows": r.stock_rows,
+        "stockLink": r.stock_link,
+        "stockRows": if r.stock_link.is_empty() { serde_json::json!(r.stock_rows) } else { serde_json::json!([]) },
         "consent": file(&r.id, "consent", &r.consent),
         "auditType": r.audit_type,
         "srCode": r.sr_code,
@@ -746,11 +894,12 @@ fn public_response(r: &Stored) -> serde_json::Value {
 
 fn responses_csv(rows: &[Stored]) -> String {
     let mut out = String::from("\u{feff}");
-    out.push_str("Submitted at,Auditor,Other auditor,Conducted as planned,Date of audit,DB Code,DB Name,Location,State,ASM,SDE,DSE / TGO,Physical stock file,Products,Saleable total,Unsaleable total,Consent form,Audit type,Sales return outlet code,Sales return outlet name,Value of sales return,Proof of sales return,Secondary outlet code,Secondary outlet name,Value of secondary,Proof of secondary,Cancellation reason,Cancellation date\n");
+    out.push_str("Submitted at,Auditor,Other auditor,Conducted as planned,Date of audit,DB Code,DB Name,Location,State,ASM,SDE,DSE / TGO,Physical stock file,Physical stock link,Products,Saleable total,Unsaleable total,Consent form,Audit type,Sales return outlet code,Sales return outlet name,Value of sales return,Proof of sales return,Secondary outlet code,Secondary outlet name,Value of secondary,Proof of secondary,Cancellation reason,Cancellation date\n");
     for r in rows {
-        let saleable: f64 = r.stock_rows.iter().map(|row| row.saleable).sum();
-        let unsaleable: f64 = r.stock_rows.iter().map(|row| row.unsaleable).sum();
-        let products = r.stock_rows.len().to_string();
+        let product_count = if r.product_count > 0 { r.product_count } else { r.stock_rows.len() };
+        let saleable = if r.stock_rows.is_empty() { r.saleable_total } else { r.stock_rows.iter().map(|row| row.saleable).sum() };
+        let unsaleable = if r.stock_rows.is_empty() { r.unsaleable_total } else { r.stock_rows.iter().map(|row| row.unsaleable).sum() };
+        let products = product_count.to_string();
         let saleable_text = num(saleable);
         let unsaleable_text = num(unsaleable);
         let consent = r.consent.as_ref().map(|f| f.name.as_str()).unwrap_or("");
@@ -770,6 +919,7 @@ fn responses_csv(rows: &[Stored]) -> String {
             &r.sde,
             &r.dse,
             &r.stock_file_name,
+            &r.stock_link,
             &products,
             &saleable_text,
             &unsaleable_text,
@@ -793,8 +943,27 @@ fn responses_csv(rows: &[Stored]) -> String {
 
 fn stock_csv(rows: &[Stored]) -> String {
     let mut out = String::from("\u{feff}");
-    out.push_str("Submitted at,Auditor,DB Code,DB Name,Stock file,Product code,Product description,MRP,Saleable,Unsaleable,Physical,Result\n");
+    out.push_str("Submitted at,Auditor,DB Code,DB Name,Physical stock link,Stock file,Product code,Product description,MRP,Saleable,Unsaleable,Physical,Result\n");
     for r in rows {
+        if r.stock_rows.is_empty() {
+            out.push_str(&csv_line(&[
+                &r.submitted_at,
+                &r.auditor,
+                &r.db_code,
+                &r.db_name,
+                &r.stock_link,
+                &r.stock_file_name,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+            ]));
+            out.push('\n');
+            continue;
+        }
         for row in &r.stock_rows {
             let mrp = num(row.mrp);
             let saleable = num(row.saleable);
@@ -805,6 +974,7 @@ fn stock_csv(rows: &[Stored]) -> String {
                 &r.auditor,
                 &r.db_code,
                 &r.db_name,
+                &r.stock_link,
                 &r.stock_file_name,
                 &row.code,
                 &row.desc,

@@ -7,3 +7,12 @@ services:
     buildCommand: cargo build --release
     startCommand: ./target/release/stock_audit_fld
     healthCheckPath: /healthz
+    envVars:
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REFRESH_TOKEN
+        sync: false
+      - key: GOOGLE_DRIVE_FOLDER
+        sync: false

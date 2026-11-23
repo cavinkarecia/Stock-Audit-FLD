@@ -66,25 +66,21 @@ a.btn{display:inline-block;background:var(--acc);color:#fff;text-decoration:none
 .thanks h2{font-size:32px}
 .search{max-width:320px}
 .mini{font-size:13px;color:var(--mut)}
-.bx{background:#fff;border:2px solid hsl(var(--bh) 62% 42%);border-radius:10px;margin:14px 0;overflow:hidden}
-.bx>summary{cursor:pointer;padding:10px 12px;background:hsl(var(--bh) 62% 38%);color:#fff;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-weight:800;list-style:none}
+.bx{background:#fff;border:1px solid var(--line);border-radius:10px;margin:14px 0;overflow:hidden}
+.bx>summary{cursor:pointer;padding:10px 12px;background:#f4f7fb;color:#16302b;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-weight:800;list-style:none;border-bottom:1px solid var(--line)}
 .bx>summary::-webkit-details-marker{display:none}
-.bxn{font-size:16px}.bxs{font-weight:600;font-size:12px}
+.bxn{font-size:16px}.bxs{font-weight:600;font-size:12px;color:var(--mut)}
 .atbl{overflow:auto}
 .atbl table{min-width:980px}
 .atbl th{white-space:nowrap}
 .atbl td small{display:block;color:var(--mut);font-size:12px}
 .bx input{width:78px;padding:8px}
 .bx input.pk{width:64px}
-tr[data-k]{background:hsl(var(--bh) 78% 90%);box-shadow:inset 8px 0 0 hsl(var(--bh) 62% 40%)}
+tr[data-k]{background:#fff}
 .pr{display:flex;gap:10px;align-items:center}
-.pi{width:44px;height:56px;object-fit:contain;border-radius:6px;background:#fff;border:1px solid var(--line);cursor:pointer;flex:0 0 44px}
-.br{display:inline-block;font-size:11px;font-weight:800;padding:1px 9px;border-radius:99px;color:#fff;background:hsl(var(--bh) 62% 38%);margin-top:3px}
+.br{display:inline-block;font-size:11px;font-weight:800;padding:1px 9px;border-radius:99px;color:#16302b;background:#f4f7fb;margin-top:3px}
 .act{font-weight:800;font-size:15px;display:block;margin-top:2px}
-tr.rb .res{background:#c2570a}tr.rf .res{background:#1d4ed8}tr.rm .res{background:#17803d}
-tr.rb .res,tr.rf .res,tr.rm .res{color:#fff;border-radius:8px}
-tr.rb .res small,tr.rf .res small,tr.rm .res small{color:rgba(255,255,255,.92)}
-tr.rb .res .act,tr.rf .res .act,tr.rb .res .pill,tr.rf .res .pill,tr.rm .res .pill{color:#fff;background:transparent}
+.pill{background:#f4f7fb;color:#16302b}
 @media(max-width:720px){.mail .add,header .wrap{display:block}nav{margin-top:14px}}
 </style>
 </head>
@@ -193,18 +189,18 @@ function calcRow(r){
 }
 function resHtml(x){
   let sale;
-  if(x.st==="n") sale='<span class="pill pn">Not counted</span>';
+  if(x.st==="n") sale="Not counted";
   else {
-    const physical='<small>Physical '+cases(x.ph,x.k)+"</small>";
-    if(x.st==="m") sale='<span class="pill pm">Matched</span>'+physical;
-    else if(x.st==="b") sale='<span class="pill pb">BUFFER STOCK</span><span class="act">Bill '+cases(x.diff,x.k)+"</span><small>"+inr(x.val)+" at MRP</small>"+physical;
-    else sale='<span class="pill pf">FORWARD STOCK</span><span class="act">Sales return '+cases(x.diff,x.k)+"</span><small>"+inr(x.val)+" at MRP</small>"+physical;
+    const physical="Physical "+cases(x.ph,x.k);
+    if(x.st==="m") sale="Matched · "+physical;
+    else if(x.st==="b") sale="Buffer stock · Bill "+cases(x.diff,x.k)+" · "+inr(x.val)+" · "+physical;
+    else sale="Forward stock · Sales return "+cases(x.diff,x.k)+" · "+inr(x.val)+" · "+physical;
   }
   let unsale="";
-  if(x.st2==="n"){ if(x.u>0) unsale='<span class="pill pn">Unsaleable not counted</span><small>System unsaleable '+cases(x.u,x.k)+"</small>"; }
-  else if(x.st2==="m") unsale='<span class="pill pm">Unsaleable matched</span>';
-  else unsale='<span class="pill '+(x.st2==="s"?"pb":"pf")+'">UNSALEABLE '+(x.st2==="s"?"SHORT":"EXCESS")+'</span><span class="act">'+cases(x.diff2,x.k)+"</span><small>"+(x.st2==="s"?"System more than physical":"Physical more than system")+", "+inr(x.val2)+"</small>";
-  return unsale?sale+'<div style="margin-top:6px;padding-top:5px;border-top:1px dashed rgba(128,128,128,.6)">'+unsale+"</div>":sale;
+  if(x.st2==="n"){ if(x.u>0) unsale="Unsaleable not counted · system "+cases(x.u,x.k); }
+  else if(x.st2==="m") unsale="Unsaleable matched";
+  else unsale="Unsaleable "+(x.st2==="s"?"short":"excess")+" · "+cases(x.diff2,x.k)+" · "+inr(x.val2);
+  return unsale?sale+"<br>"+unsale:sale;
 }
 function resultName(x){
   const sale=x.st==="n"?"Not counted":x.st==="m"?"Matched":x.st==="b"?"Buffer stock":"Forward stock";
@@ -255,7 +251,6 @@ function genImg(d,b,h){
 function auditHtml(){
   const rows=S.stockRows||[];
   if(!rows.length) return "";
-  const BH=hues();
   const groups={};
   rows.forEach(r=>{const x=calcRow(r); (groups[x.b]=groups[x.b]||[]).push(x);});
   const order=["CHIK","MEERA","KARTHIKA","RUCHI","BHIMA","CAVINS","MAA","CAKE","RUSK (MILK & ELACHI)","SPINZ"];
@@ -267,8 +262,7 @@ function auditHtml(){
     const items=groups[b];
     const lines=items.map(x=>{
       const r=x.r, e=x.e;
-      const img=S.photos[r.k]||genImg(r.desc,b,BH[b]);
-      return `<tr class="r${x.st}" data-k="${esc(r.k)}" style="--bh:${BH[b]}"><td data-l="Product"><div class="pr"><img class="pi" data-k="${esc(r.k)}" src="${img}" alt=""><div><b>${esc(r.desc)}</b><small>${esc(r.code)} · MRP ${inr(r.mrp)}</small><span class="br">${esc(b)}</span></div></div></td>
+      return `<tr data-k="${esc(r.k)}"><td data-l="Product"><div><b>${esc(r.desc)}</b><small>${esc(r.code)} · MRP ${inr(r.mrp)}</small><span class="br">${esc(b)}</span></div></td>
         <td data-l="Pcs / case"><input class="pk" type="number" min="1" inputmode="numeric" placeholder="?" value="${esc(S.P[r.k]||x.k||"")}"></td>
         <td data-l="System stock" class="sys"><b>${cases(r.sys,x.k)}</b><small>${qty(r.sys)} pcs</small></td>
         <td data-l="Physical cases"><input class="pc" type="number" min="0" inputmode="numeric" value="${esc(e.c==null?"":e.c)}"></td>
@@ -278,7 +272,7 @@ function auditHtml(){
         <td data-l="Unsaleable pcs"><input class="ul" type="number" min="0" inputmode="numeric" value="${esc(e.ul==null?"":e.ul)}"></td>
         <td data-l="Result" class="res">${resHtml(x)}</td></tr>`;
     }).join("");
-    return `<details class="bx" open data-b="${esc(b)}" style="--bh:${BH[b]}"><summary><span class="bxn">${esc(b)}</span><span class="bxs">${boxStat(items)}</span></summary><div class="atbl"><table><thead>${head}</thead><tbody>${lines}</tbody></table></div></details>`;
+    return `<details class="bx" open data-b="${esc(b)}"><summary><span class="bxn">${esc(b)}</span><span class="bxs">${boxStat(items)}</span></summary><div class="atbl"><table><thead>${head}</thead><tbody>${lines}</tbody></table></div></details>`;
   }).join("");
   return `<div id="auditBox">${blocks}</div>`;
 }
@@ -297,14 +291,16 @@ function followHtml(){
       ${lab("Value of secondary",true)}${inp("secValue")}
       ${lab("Proof of secondary",true)}<input id="secFile" type="file">${fileNote(S.secProof)}`;
   }
-  html+=`<div class="row"><button class="g" id="back" type="button">Back</button><button class="p" id="send" type="button"${S.busy?" disabled":""}>Submit</button></div>`;
+  html+=`<p class="note">Submit saves one Excel named with this auditor, DB code and date. The response line keeps that file link only.</p>
+    <div class="row"><button class="p" id="send" type="button"${S.busy?" disabled":""}>Submit</button></div>`;
   return html;
 }
 function stockHtml(){return auditHtml();}
 
 function stepHtml(){
   if(S.step==="done"){
-    return `<div class="thanks"><h2>Thank You for your inputs!</h2><p>The response is saved. Open Raw Data to see it, download it, or mail it.</p>
+    return `<div class="thanks"><h2>Thank You for your inputs!</h2><p>The response is saved. The physical stock Excel is stored, and this line keeps that link.</p>
+      ${S.savedLink?`<p><a href="${esc(S.savedLink)}" target="_blank" rel="noopener">${esc(S.savedLink)}</a></p>`:""}
       <div class="row" style="justify-content:center"><button class="p" id="again" type="button">New response</button><button class="g" id="gotoRaw" type="button">Raw Data</button></div></div>`;
   }
   if(S.step==="start"){
@@ -696,23 +692,45 @@ function onProof(file,key){
   reader.readAsDataURL(file);
 }
 
+function fileBit(s){return String(s||"audit").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40)||"audit";}
+function stockBook(){
+  const auditor=S.auditor==="Other"?S.auditorOther:S.auditor;
+  const name=fileBit(auditor)+"_"+fileBit(S.dbCode)+"_"+fileBit(S.date)+".xlsx";
+  const info=[
+    ["Auditor",auditor],["DB Code",S.dbCode],["DB Name",S.dbName],["Date of audit",S.date],
+    ["Location",S.loc],["State",S.stt],["ASM",S.asm],["SDE / TSO",S.sde],["DSE / TGO",S.dse],
+    ["Audit type",S.auditType],["Source file",S.stockFileName]
+  ];
+  const header=["Brand","Product code","Product","MRP","Pcs per case","System pcs","Physical cases","Loose pcs","Physical pcs","Result","Unsaleable system pcs","Unsaleable cases","Unsaleable pcs","Unsaleable physical pcs"];
+  const lines=(S.stockRows||[]).map(r=>{
+    const x=calcRow(r), e=x.e;
+    return [x.b,r.code,r.desc,r.mrp||0,x.k||"",r.sys||0,e.c??"",e.l??"",x.has?x.ph:"",resultName(x),x.u,e.uc??"",e.ul??"",x.has2?x.ph2:""];
+  });
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(info),"Line");
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([header].concat(lines)),"Physical stock");
+  return {name,contentType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",dataBase64:XLSX.write(wb,{bookType:"xlsx",type:"base64"})};
+}
 function payload(){
   const body={
     auditor:S.auditor,auditorOther:S.auditor==="Other"?S.auditorOther:"",conducted:S.conducted,
-    date:"",dbCode:"",dbName:"",location:"",state:"",asm:"",sde:"",dse:"",stockFileName:"",stockRows:[],consent:null,auditType:"",
+    date:"",dbCode:"",dbName:"",location:"",state:"",asm:"",sde:"",dse:"",stockFileName:"",stockRows:[],stockBook:null,productCount:0,saleableTotal:0,unsaleableTotal:0,consent:null,auditType:"",
     srCode:"",srName:"",srValue:"",srProof:null,secCode:"",secName:"",secValue:"",secProof:null,
     cancelReason:"",cancelDate:""
   };
   if(S.conducted==="No"){
     body.cancelReason=S.cancelReason; body.cancelDate=S.cancelDate; return body;
   }
+  const book=stockBook();
+  let saleable=0, unsaleable=0;
+  (S.stockRows||[]).forEach(r=>{saleable+=+r.saleable||0; unsaleable+=+r.unsaleable||0;});
   body.date=S.date; body.dbCode=S.dbCode; body.dbName=S.dbName;
   body.location=S.loc; body.state=S.stt; body.asm=S.asm; body.sde=S.sde; body.dse=S.dse;
-  body.stockFileName=S.stockFileName;
-  body.stockRows=(S.stockRows||[]).map(r=>{
-    const x=calcRow(r);
-    return {code:r.code,desc:r.desc,mrp:r.mrp||0,saleable:r.saleable||0,unsaleable:r.unsaleable||0,physical:x.has?x.ph:0,result:resultName(x)};
-  });
+  body.stockFileName=book.name;
+  body.stockBook=book;
+  body.productCount=(S.stockRows||[]).length;
+  body.saleableTotal=saleable;
+  body.unsaleableTotal=unsaleable;
   body.consent=S.consent; body.auditType=S.auditType;
   if(S.auditType==="Sales Return"||S.auditType===BOTH){
     body.srCode=S.srCode; body.srName=S.srName; body.srValue=S.srValue; body.srProof=S.srProof;
@@ -745,14 +763,18 @@ function branchOk(){
 
 async function onSend(){
   error="";
-  if(S.step==="stock"){ if(!stockReady()) return renderForm(); }
+  if(S.step==="stock"){
+    if(!window.XLSX){error="The Excel tool did not load. Check the connection and reload the page."; return renderForm();}
+    if(!stockReady()) return renderForm();
+  }
   else if(!branchOk()) return renderForm();
   S.busy=true; renderForm();
   try{
     const res=await fetch("/api/responses",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload())});
     const data=await res.json().catch(()=>({}));
     if(!res.ok){error=data.error||"Could not save the response."; S.busy=false; renderForm(); return;}
-    Object.assign(S,blank(),{step:"done"});
+    const link=data.stockLink||"";
+    Object.assign(S,blank(),{step:"done",savedLink:link});
     error="";
     renderForm();
   }catch(e){
@@ -774,14 +796,14 @@ function drawRaw(){
   const rows=responses.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
   if(!rows.length){document.getElementById("rawTable").innerHTML=`<p class="note">${responses.length?"No responses match that search.":"No responses yet."}</p>`; return;}
   document.getElementById("rawTable").innerHTML=`<div class="scroll"><table><thead><tr>
-    <th>Submitted</th><th>Auditor</th><th>Conducted</th><th>DB</th><th>Audit</th><th>Stock output</th><th>Files</th><th></th>
+    <th>Submitted</th><th>Auditor</th><th>Conducted</th><th>DB</th><th>Audit</th><th>Physical stock</th><th>Files</th><th></th>
   </tr></thead><tbody>${rows.map(r=>`<tr>
     <td>${esc(r.submittedAt)}</td>
     <td>${esc(r.auditor)}${r.auditorOther?`<div class="mini">${esc(r.auditorOther)}</div>`:""}</td>
     <td>${esc(r.conducted)}${r.conducted==="No"?`<div class="mini">${esc(r.cancelDate)} ${esc(r.cancelReason)}</div>`:`<div class="mini">${esc(r.date)}</div>`}</td>
     <td>${esc(r.dbName)}<div class="mini">${esc(r.dbCode)}</div></td>
     <td>${esc(r.auditType)}<div class="mini">${esc([r.srName,r.secName].filter(Boolean).join(" · "))}</div></td>
-    <td>${r.productCount?`${r.productCount} products<br>Saleable ${qty(r.saleableTotal)}<br>Unsaleable ${qty(r.unsaleableTotal)} <button type="button" data-out="${esc(r.id)}">View</button>`:"—"}</td>
+    <td>${r.stockLink?`<a href="${esc(r.stockLink)}" target="_blank" rel="noopener">${esc(r.stockLink)}</a>`:(r.productCount?`${r.productCount} products`:"—")}</td>
     <td>${[fileLink(r.consent),fileLink(r.srProof),fileLink(r.secProof)].filter(Boolean).join("<br>")}</td>
     <td><button type="button" class="g" data-del="${esc(r.id)}">Remove</button></td>
   </tr>`).join("")}</tbody></table></div>`;
